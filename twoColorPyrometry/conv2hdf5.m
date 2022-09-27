@@ -36,7 +36,7 @@ for i=1:length(filename)
         h5create(hdfname,'/main/discretization',[1 3])
     end
 
-    h5write(hdfname,"/main/tempdata",flameTemp)
+    h5write(hdfname,"/main/tempdata",mat)
     h5write(hdfname,"/main/start",startm)
     h5write(hdfname,"/main/end",endm)
     h5write(hdfname,"/main/discretization",dxm)
