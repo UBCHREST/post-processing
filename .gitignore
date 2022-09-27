@@ -127,3 +127,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Clion/JetBrains
+# User-specific stuff
+/.idea
