@@ -13,6 +13,17 @@ def write_data_item(xdmf_parent, hdf5_item, hdf5_filename):
     dataItem.text = hdf5_filename + ":" + hdf5_item.name
 
 
+# store some dimensional information
+topology_type = {
+    2: "2DCoRectMesh",
+    3: "3DCoRectMesh"
+}
+
+geometry_type = {
+    2: "Origin_DxDy",
+    3: "Origin_DxDyDz"
+}
+
 # generate the xdmf file xml for this file
 def generate_xdmf(hdf5_file, xdmf_file, root='main'):
     # Load in the hdf5 file
@@ -28,7 +39,7 @@ def generate_xdmf(hdf5_file, xdmf_file, root='main'):
     fieldNames = []
     for field_name in hdf5_fields.keys():
         # if field data
-        if hdf5_fields[field_name].ndim > 2:
+        if hdf5_fields[field_name].ndim > 1 and hdf5_fields[field_name].shape[1] > 1:
             fieldNames.append(field_name)
             # check the dim
             if gridDim:
@@ -47,14 +58,17 @@ def generate_xdmf(hdf5_file, xdmf_file, root='main'):
     grid.set('Name', 'mesh')
     grid.set('GridType', 'Uniform')
 
+    # determine the dim of the grid
+    grid_dim = len(gridDim)
+
     # Set the baseline topology
     topology = ET.SubElement(grid, 'Topology')
-    topology.set('TopologyType', '3DCoRectMesh')
+    topology.set('TopologyType', topology_type[grid_dim])
     topology.set('NumberOfElements', grid_cell_dim_string)
 
     # add the simple geometry describing a structured grid
     geometry = ET.SubElement(grid, 'Geometry')
-    geometry.set('GeometryType', 'Origin_DxDyDz')
+    geometry.set('GeometryType', geometry_type[grid_dim])
     write_data_item(geometry, hdf5_fields['start'], hdf5_file.name)
     write_data_item(geometry, hdf5_fields['discretization'], hdf5_file.name)
 
