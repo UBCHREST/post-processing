@@ -17,10 +17,9 @@ for i=1:length(filename)
     RMSav = RMSav+mat(:,:,2);
 
 end
-RMSmat= sqrt((RMSmat)./i )
-% RMSmat= sqrt((RMSmat)./i - (RMSav./i).^2);
-% - (RMSav./i).^2
-% RMSmat= sqrt((RMSmat).^2./i);
+% RMSmat= sqrt((RMSmat)./i )
+RMSmat= sqrt((RMSmat)./i - (RMSav./i).^2);
+
 
 
 % figure(1)
