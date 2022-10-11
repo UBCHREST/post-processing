@@ -1,31 +1,51 @@
 clear all; close all; clc;
 
 
-filename = dir('Img*.tiff')
-for i=1:length(filename)
+filename = dir('*.tiff')
+imax=length(filename);
+imageperdraw=2; %set up the number of images per mask
+i=1;
+while i<imax
+    idx=0;
+    currFileName = filename(i).name;
+    image = imread(currFileName);
+    % image = imread('Img759.tiff');
+    % I = image(50:end,25:380,:);
+    % image=image(end-100:end,:,:);
+    figure(999);
+    h = imshow(image);
+    e = drawpolygon;
+    vertexX = size(image,1) - floor(e.Position(:,2)) + 1;
+    vertexY = floor(e.Position(:,1)) + 1;
+%     BW = createMask(e, h);
+%     complementBW = imcomplement(BW);
+%     image = image.*uint8(complementBW);
+    while idx < imageperdraw
         currFileName = filename(i).name;
-        dotcp(currFileName)
+        image = imread(currFileName);
+        % image = imread('Img759.tiff');
+        % I = image(50:end,25:380,:);
+        % image=image(end-100:end,:,:);
+        BW = createMask(e, h);
+        complementBW = imcomplement(BW);
+        image = image.*uint8(complementBW);
+        dotcp(currFileName,image,vertexX,vertexY,BW)
+
+
+
+        idx=idx+1;
+        i=i+1;
+    end
 end
 
 
-function []=dotcp(filename)
+function []=dotcp(filename,image,vertexX,vertexY,BW)
 %% Reading in image and creating a mask
-image = imread(filename);
-% image = imread('Img759.tiff');
-I = image(50:end,25:380,:);
-image=image(end-100:end,:,:);
-figure(999);
-h = imshow(image);
-e = drawpolygon;
-vertexX = size(image,1) - floor(e.Position(:,2)) + 1;
-vertexY = floor(e.Position(:,1)) + 1;
-BW = createMask(e, h);
-complementBW = imcomplement(BW);
-image = image.*uint8(complementBW);
 
-    
-%%    
-dt = log(1/400);   %reference f/22
+
+
+%%
+dt = log(1/1000);   %reference f/22
 image_red = image;%(:,:,1,:);
 
 img_interest = reshape(image_red, [size(image_red, 1)*size(image_red,2), size(image_red, 3)]);
@@ -48,7 +68,7 @@ E = exp(lnE);
 %Using Planck's law to obtain temperature from the obtained physical
 %irradiance
 %Define Constants
-t = 1/5000 ; %Time between Frames
+t = 1/1000 ; %Time between Frames
 %Setting the constants required for Planck's law
 c = 3e8; %Speed of light
 h = 6.626e-34; %Planck's constant
