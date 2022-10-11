@@ -14,6 +14,8 @@ if __name__ == "__main__":
                              'to supply more than one file.')
     parser.add_argument('--density', dest='density', type=float, required=False, default=900,
                         help='The density to compute the regression rate')
+    parser.add_argument('--timePlot', dest='timePlot', type=bool, required=False, default=False,
+                        help='If a plot is generated for each time in the time series')
     args = parser.parse_args()
 
     # create an empty data frame
@@ -42,8 +44,10 @@ if __name__ == "__main__":
             lambda row: row[regressionMassFluxName] / density * 1000, axis=1)
 
         regression_rates_sorted = regression_rates.sort_values(by=[xAxis])
-        # regression_rates_sorted.plot.line(x='x', y=regressionRateName, title = f'Regression Rate {regression_rates_sorted["time"][0]}')
-        # plt.show()
+        if args.timePlot:
+            regression_rates_sorted.plot.line(x='x', y=regressionRateName,
+                                              title=f'Regression Rate {regression_rates_sorted["time"][0]}')
+            plt.show()
 
         # merge them together
         count += 1
