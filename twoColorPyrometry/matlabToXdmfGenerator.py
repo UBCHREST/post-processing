@@ -3,6 +3,8 @@ import pathlib
 import xml.etree.ElementTree as ET
 import h5py
 
+from support.supportPaths import expand_path
+
 
 def write_data_item(xdmf_parent, hdf5_item, hdf5_filename):
     dataItem = ET.SubElement(xdmf_parent, 'DataItem')
@@ -23,6 +25,7 @@ geometry_type = {
     2: "Origin_DxDy",
     3: "Origin_DxDyDz"
 }
+
 
 # generate the xdmf file xml for this file
 def generate_xdmf(hdf5_file, xdmf_file, root='main'):
@@ -88,18 +91,14 @@ def generate_xdmf(hdf5_file, xdmf_file, root='main'):
         tree.write(f, xml_declaration=False, encoding='unicode')
 
 
-def expand_path(path_pattern):
-    p = pathlib.Path(path_pattern)
-    return p.parent.expanduser().glob(p.name)
-
-
 # Main function to parser input files and run the document generator
 def parse():
     parser = argparse.ArgumentParser(description='Generate an xdmf file from MatLab data files holding structed data. '
                                                  'See https://github.com/cet-lab/experimental-post-processing/wiki'
                                                  '/Matlab-To-XdmfGenerator for details.  ')
     parser.add_argument('--file', dest='hdf5_file', type=pathlib.Path, required=True,
-                        help='The path to the hdf5 file(s) containing the structured data.  A wild card can be used to supply more than one file.')
+                        help='The path to the hdf5 file(s) containing the structured data.  A wild card can be used '
+                             'to supply more than one file.')
     args = parser.parse_args()
 
     # expand any wild cards in the path name
