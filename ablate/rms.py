@@ -38,6 +38,7 @@ if __name__ == "__main__":
     # march over each file with path
     count = 0
     for hdf5_file in hdf5_paths:
+        print("Opening ", hdf5_file)
         count += 1
         # Load in the hdf5 file
         hdf5_source = h5py.File(hdf5_file, 'r')
