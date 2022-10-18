@@ -74,6 +74,4 @@ if __name__ == "__main__":
     field_rms[:] = numpy.maximum(field_rms[:], 0)
     field_rms[:] = numpy.sqrt(field_rms[:])
 
-    print(numpy.amin(field_rms[:]))
-
     hdf5_dest.close()
