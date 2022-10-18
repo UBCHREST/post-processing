@@ -1,14 +1,11 @@
 import argparse
 import math
 import pathlib
-import time
 
 import h5py
 import numpy
 
-from support.matlabToXdmfGenerator import generate_xdmf
 from support.supportPaths import expand_path
-
 
 def find_cell_index(start, dx, search):
     offset = search - start
@@ -63,6 +60,8 @@ if __name__ == "__main__":
         field_avg[:] = numpy.add(field_avg[:], source_field[:])
         field_rms[:] = numpy.add(field_rms[:], numpy.square(source_field[:]))
         hdf5_source.close()
+
+        print("Added in contribution from ", hdf5_file)
 
     # Now finish
     field_avg[:] = field_avg[:] / count
