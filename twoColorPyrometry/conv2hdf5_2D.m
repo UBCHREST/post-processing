@@ -17,20 +17,20 @@ for i=1:length(filename)
             mat = vertcat(matstruct.(fields{k}));
 
             %     assume everything starts at 0
-            xstart=0;
-            ystart=0;
+            xstart=0.1278149167;
+            ystart=-0.01164166666582;
             zstart=0;
             %     assume discretization is uniform, dx=dy=dz, get dy from chamber height (1in)
-            dy=0.0254/size(mat,2);
-            dx=dy;
-            dz=dy;
+            delta=0.0762/size(mat,2);
+            dx=-delta;
+            dz=delta;
 
             xend=size(mat,1)*dx
             zend=size(mat,3)*dz
 
 
             %files to write
-            startm=[xstart zstart]
+            startm=[xstart ystart]
             endm=[xend zend]
             dxm=[dx dz]
 
