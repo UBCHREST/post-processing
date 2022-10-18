@@ -7,6 +7,7 @@ import numpy
 
 from support.supportPaths import expand_path
 
+
 def find_cell_index(start, dx, search):
     offset = search - start
     return math.floor(offset / dx)
@@ -56,8 +57,10 @@ if __name__ == "__main__":
             # set up default values
             field_avg = hdf5_dest.create_dataset(args.field + "_avg", source_field.shape, 'f',
                                                  fillvalue=0)
+            field_avg.attrs.update(source_field.attrs)
             field_rms = hdf5_dest.create_dataset(args.field + "_rms", source_field.shape, 'f',
                                                  fillvalue=0)
+            field_rms.attrs.update(source_field.attrs)
 
         field_avg[:] = numpy.add(field_avg[:], source_field[:])
         field_rms[:] = numpy.add(field_rms[:], numpy.square(source_field[:]))
@@ -68,6 +71,6 @@ if __name__ == "__main__":
     # Now finish
     field_avg[:] = field_avg[:] / count
     field_rms[:] = field_rms[:] / count - numpy.square(field_avg[:])
-    # field_rms[:] = numpy.sqrt(field_rms[:])
+    field_rms[:] = numpy.sqrt(field_rms[:])
 
     hdf5_dest.close()
