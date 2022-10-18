@@ -68,6 +68,6 @@ if __name__ == "__main__":
     # Now finish
     field_avg[:] = field_avg[:] / count
     field_rms[:] = field_rms[:] / count - numpy.square(field_avg[:])
-    field_rms[:] = numpy.sqrt(field_rms[:])
+    # field_rms[:] = numpy.sqrt(field_rms[:])
 
     hdf5_dest.close()
