@@ -46,6 +46,7 @@ if __name__ == "__main__":
         source_field = hdf5_source[args.field]
         # set up the output on the first time
         if not initiated:
+            initiated = True
             hdf5_source.copy(hdf5_source["viz"], hdf5_dest, "viz")
             hdf5_source.copy(hdf5_source["topology"], hdf5_dest, "topology")
             hdf5_source.copy(hdf5_source["time"], hdf5_dest, "time")
