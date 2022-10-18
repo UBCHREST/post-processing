@@ -25,7 +25,7 @@ if __name__ == "__main__":
     hdf5_paths = expand_path(args.hdf5_file)
 
     # Create the output file
-    output_file = args.hdf5_file.parent / (args.hdf5_file.stem + ".rms.hdf5")
+    output_file = args.hdf5_file.parent / "stats.h5"
     hdf5_dest = h5py.File(output_file, 'w')
 
     # hold the main data
