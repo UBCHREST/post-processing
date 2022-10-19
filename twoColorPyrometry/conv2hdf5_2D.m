@@ -22,11 +22,14 @@ for i=1:length(filename)
             zstart=0;
             %     assume discretization is uniform, dx=dy=dz, get dy from chamber height (1in)
             delta=0.0762/size(mat,2);
-            dx=-delta;
+            dx=delta;
             dz=delta;
 
             xend=size(mat,1)*dx
             zend=size(mat,3)*dz
+
+            % Flip x
+            mat = flip(mat, 1);
 
 
             %files to write
