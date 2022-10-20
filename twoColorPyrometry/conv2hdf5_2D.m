@@ -17,7 +17,7 @@ for i=1:length(filename)
             mat = vertcat(matstruct.(fields{k}));
 
             %     assume everything starts at 0
-            xstart=0.1278149167;
+            xstart=0.01880658333;
             ystart=-0.01164166666582;
             zstart=0;
             %     assume discretization is uniform, dx=dy=dz, get dy from chamber height (1in)
