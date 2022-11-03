@@ -31,7 +31,7 @@ if __name__ == "__main__":
     # Set some values
     xAxis = 'x'
     regressionMassFluxName = 'slab boundary_monitor_regressionMassFlux'
-    regressionRateName = 'regression_rate mm/s'
+    regressionRateName = 'regressionRate mm/s'
     regressionRateAvgName = 'regression_rate_avg'
     regressionRateRmsName = 'regression_rate_rms'
 
