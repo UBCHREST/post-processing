@@ -1,7 +1,6 @@
 import argparse
 import math
 import pathlib
-import time
 
 import h5py
 import numpy
