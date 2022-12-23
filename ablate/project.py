@@ -74,7 +74,7 @@ if __name__ == "__main__":
                         help='Controls whether there is a new directory or not', default=False)
     args = parser.parse_args()
 
-    # Construction zone! Beep beep beep!
+    # Load in all HDF5 files here
     [all_hdf5_files, multi_check] = get_all_files(args.hdf5_file)
 
     # If we want a new directory, then create one here
