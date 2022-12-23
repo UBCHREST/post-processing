@@ -104,9 +104,9 @@ if __name__ == "__main__":
         project_hdf5_root = h5py.File(output_file, 'w')
 
         # copy over the known info
-        start_dataset = project_hdf5_root.create_dataset("main/start", (2), 'f')
+        start_dataset = project_hdf5_root.create_dataset("main/start", (2,), 'f')
         start_dataset[:] = [minCoord[0], minCoord[1]]
-        discretization_dataset = project_hdf5_root.create_dataset("main/discretization", (2), 'f')
+        discretization_dataset = project_hdf5_root.create_dataset("main/discretization", (2,), 'f')
         discretization_dataset[:] = [(maxCoord[0] - minCoord[0]) / args.nx, (maxCoord[1] - minCoord[1]) / args.ny]
 
         # size up the field
