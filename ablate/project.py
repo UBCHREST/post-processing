@@ -203,7 +203,7 @@ if __name__ == "__main__":
                 field_value = field3D[0, c]
             # convert from rms
             # hard code bad
-            # field_value = field_value / 6881.0
+            field_value = field_value / 6881.0
 
             # get the center of the cell
             cell_center = [0, 0]
