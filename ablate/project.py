@@ -5,6 +5,7 @@ import numpy
 from mpi4py import MPI
 import h5py
 import time
+import sys
 
 
 # Need a function that can get all the hdf5 file paths into a list
@@ -227,6 +228,7 @@ if __name__ == "__main__":
             # check for output
             if c % 1000 == 0 and rank == 0:
                 print((c / local_num_cells) * 100, "% done...")
+                sys.stdout.flush()
 
         # Cleanup!
         if type(local_cleanup_range) != list:
