@@ -180,7 +180,11 @@ if __name__ == "__main__":
 
         # Find the correct component
         component_index = -1
-        number_components = field3D.shape[2]
+        if len(field3D.shape) == 3:
+            number_components = field3D.shape[2]
+        else:
+            number_components = 1
+
         buffer = numpy.empty(1, dtype=int)
         if len(field3D.shape) == 3:
             if rank == 0:
