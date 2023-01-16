@@ -9,7 +9,17 @@ if __name__ == "__main__":
     parser.add_argument("--file", dest="file", type=pathlib.Path, required=True, help="Loads hdf5 file")
     parser.add_argument("--save", dest="save", type=bool, required=False, default=False,
                         help="Decide whether to save the file or show it")
+    parser.add_argument("--type", dest="type", type=str, required=False, default="avg",
+                        help="Decide what type of plot(s) to display")
+    parser.add_argument("--color", dest="color", type=str, required=False, default="hot",
+                        help="Select the colormap for the plot")
     args = parser.parse_args()
+
+    # First, vet the arguments. Make sure they compare well against tuple. Then, when plotting, loop over all of the
+    # inputs.
+    plot_types = ("min", "max", "avg", "all")
+    if args.type not in plot_types:
+        raise Exception("Invalid plotting argument")
 
     # Load hdf5 file in
     hdf5 = h5py.File(args.file, "r")
@@ -35,7 +45,15 @@ if __name__ == "__main__":
     X, Y = numpy.meshgrid(xRange, yRange)
 
     fig, ax = plt.subplots(layout='tight')
-    thePlot = ax.pcolormesh(X, Y, avg)
+    if args.type == "avg":
+        thePlot = ax.pcolormesh(X, Y, avg, cmap=args.color)
+    elif args.type == "max":
+        thePlot = ax.pcolormesh(X, Y, maximum, cmap=args.color)
+    elif args.type == "min":
+        thePlot = ax.pcolormesh(X, Y, minimum, cmap=args.color)
+    else:
+        raise Exception("How did you do that?")
+
     ax.axis('equal')
     ax.set_xlim(left=xRange[0], right=xRange[-1])
     fig.colorbar(thePlot, location='bottom', orientation='horizontal')
