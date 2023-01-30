@@ -18,9 +18,6 @@ snapShotDt=1.0/1000;
 startPoint=[0.01880658333, -0.01164166666582, -5E-3];
 endPoint=[0.1101, 0.0762, 0.0106];
 
-% store the kind of data there is
-dataType='cell';
-
 %%%%%%%%% Nothing below here needs to be changed
 matLabFiles = dir('*.mat');
 for i=1:length(matLabFiles)
@@ -30,29 +27,18 @@ for i=1:length(matLabFiles)
     chrestFile = append(rawFileName, '.h5');
     newFile = ~ isfile(chrestFile);
 
-
-
-
     % load the matlab data 
     matStruct=load(matLabFile);
 
     % march over each field in the matStruct
     fields = fieldnames(matStruct);
 
-    % create the grid information, it is assumed to be the same for all
-    % fields
-    if newFile
-      h5create(chrestFile,['/data/' dataType '/grid/start'],[1 numel(delta)])
-      h5create(chrestFile,['/data/' dataType '/grid/end'],[1 numel(delta)])
-      h5create(chrestFile,['/data/' dataType '/grid/discretization'],[1 numel(delta)])
-    end
-
     % for each field
     for k=1:numel(fields)
         % make sure the field is data/number type
-        if( isnumeric(matstruct.(fields{k})) )
+        if( isnumeric(matStruct.(fields{k})) )
             % Get the specific matlab mat
-            mat = vertcat(matstruct.(fields{k}));
+            mat = vertcat(matStruct.(fields{k}));
 
             % Compute delta x y z based upon the field data
             delta = minus(endPoint, startPoint);
@@ -66,22 +52,29 @@ for i=1:length(matLabFiles)
             mat = flip(mat, 1);
 
             % compute the field name
-            hdf5FieldName = ['/data/' dataType '/fields/' fields{k}];
+            hdf5FieldName = ['/data/fields/' fields{k}];
             
             % Write the data
             if newFile
                 h5create(chrestFile,hdf5FieldName,matSize);
             end
             h5write(chrestFile,hdf5FieldName,mat);
-
-            % write the grid data, this may override what we have, but it
-            % should be the same
-            h5write(chrestFile,['/data/' dataType '/grid/start'],startPoint)
-            h5write(chrestFile,['/data/' dataType '/grid/end'],endPoint)
-            h5write(chrestFile,['/data/' dataType '/grid/discretization'],delta)
         end
     end
 
+    % create the grid information, it is assumed to be the same for all
+    % fields
+    if newFile
+      h5create(chrestFile,'/data/grid/start',[1 numel(delta)]);
+      h5create(chrestFile,'/data/grid/end',[1 numel(delta)]);
+      h5create(chrestFile,'/data/grid/discretization',[1 numel(delta)]);
+    end
+
+    % write the grid data, this may override what we have, but it
+    % should be the same
+    h5write(chrestFile,'/data/grid/start',startPoint);
+    h5write(chrestFile,'/data/grid/end',endPoint);
+    h5write(chrestFile,'/data/grid/discretization',delta);
     % Write the metadata
     metadataKeys=keys(metadata);
     for m = 1:length(metadataKeys)
