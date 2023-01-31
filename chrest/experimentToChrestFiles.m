@@ -80,11 +80,7 @@ for i=1:length(matLabFiles)
     for m = 1:length(metadataKeys)
         key = metadataKeys{m};
         value = metadata(key);
-
-       if newFile
-            h5create(chrestFile,['/metadata/' key],1, 'Datatype','string');
-       end
-       h5write(chrestFile,['/metadata/' key],value)
+        h5writeatt(chrestFile, '/data', key, value)
     end
 
     % Compute and save the current time
@@ -92,10 +88,8 @@ for i=1:length(matLabFiles)
     index=str2double(indexString);
     time = timeStart+index*snapShotDt;
     
-    % write the file
-    if newFile
-        h5create(chrestFile,'/time',1, 'Datatype','double');
-    end
-    h5write(chrestFile,'/time/',time)
+    % write the time into the data
+    h5writeatt(chrestFile, '/data', 'time', time)
+
     
 end

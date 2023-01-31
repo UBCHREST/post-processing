@@ -83,7 +83,7 @@ class XdmfGenerator:
             write_data_item(fieldData, hdf5_fields[field_name], hdf5_file.name)
 
         # Store the time
-        self.timeHistory.append(hdf5['time'][0])
+        self.timeHistory.append(hdf5_data.attrs['time'][0])
 
     def write_to_file(self, xdmf_file):
         # add the full time history
