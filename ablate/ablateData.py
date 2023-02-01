@@ -84,12 +84,13 @@ class AblateData:
         return coords
 
     """
-    gets the specified field
+    gets the specified field and the number of components
     """
 
     def get_field(self, field_name):
         # create a dictionary of times/data
         data = []
+        components = 0
         # march over the files
         for t in self.times:
             # Load in the file
@@ -98,12 +99,16 @@ class AblateData:
                     # Check each of the cell fields
                     hdf5_field = hdf5['cell_fields'][field_name]
                     # load in the specified field name
-                    data.append(hdf5_field[0, :])
+                    hdf_field_data = hdf5_field[0, :]
+                    data.append(hdf_field_data)
+
+                    if len(hdf_field_data.shape) > 1:
+                        components = hdf_field_data.shape[1]
                 except Exception as e:
                     raise Exception(
                         "Unable to open field " + field_name + "." + str(e))
 
-        return np.stack(data)
+        return np.stack(data), components
 
     """
     converts the supplied fields ablate object to chrest data object
@@ -122,12 +127,17 @@ class AblateData:
         # store the chrest data in the same order
         ablate_field_data = []
         chrest_field_data = []
+        components = []
 
         # create the new field in the chrest data
         for ablate_field in ablate_fields:
             chrest_field = field_mapping[ablate_field]
-            chrest_field_data.append(chrest_data.create_field(chrest_field)[0])
-            ablate_field_data.append(self.get_field(ablate_field))
+            ablate_field_data_tmp, components_tmp  = self.get_field(ablate_field)
+
+            ablate_field_data.append(ablate_field_data_tmp)
+            components.append(components_tmp)
+            chrest_field_data.append(chrest_data.create_field(chrest_field, components_tmp)[0])
+
 
         # build a list of k, j, i points to iterate over
         chrest_coords = chrest_data.get_coordinates()
@@ -149,7 +159,8 @@ class AblateData:
 
             # reshape it back to k,j,i
             ablate_field_in_chrest_order = ablate_field_in_chrest_order.reshape(
-                (ablate_field_in_chrest_order.shape[0], chrest_data.grid[2], chrest_data.grid[1], chrest_data.grid[0]))
+                chrest_field_data[f].shape
+            )
 
             # copy over the data
             chrest_field_data[f][:] = ablate_field_in_chrest_order[:]
@@ -157,9 +168,9 @@ class AblateData:
 
 # parse based upon the supplied inputs
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Generate an ablate data model')
+    parser = argparse.ArgumentParser(description='Generate a chrest data file from an ablate file')
     parser.add_argument('--file', dest='file', type=pathlib.Path, required=True,
-                        help='The path to the ablate hdf5 file(s) containing the structured data.'
+                        help='The path to the ablate hdf5 file(s) containing the ablate data.'
                              '  A wild card can be used '
                              'to supply more than one file.')
     args = parser.parse_args()
@@ -168,11 +179,11 @@ if __name__ == "__main__":
     ablate_data = AblateData(args.file)
 
     # list the fields to map
-    field_mappings = {"aux_temperature": "temperature"}
+    field_mappings = {"aux_temperature": "temperature", "aux_velocity": "vel"}
 
     # create a chrest data
     chrest_data = ChrestData()
-    chrest_data.setup_new_grid([0., 0.0, -0.0127], [0.1, 0.0254, 0.0127], [0.0001, 0.0001, 0.0001])
+    chrest_data.setup_new_grid([0., 0.0, -0.0127], [0.1, 0.0254, 0.0127], [0.001, 0.001, 0.001])
     # map the ablate data to chrest
     ablate_data.map_to_chrest_data(chrest_data, field_mappings)
 

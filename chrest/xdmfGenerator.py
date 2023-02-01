@@ -43,6 +43,9 @@ class XdmfGenerator:
         hdf5_fields = hdf5_data['fields']
         hdf5_grid = hdf5_data['grid']
 
+        # determine the number of dimensions
+        dimensions = hdf5_grid['start'].shape[0]
+
         # create a list of items to output
         fieldNames = []
         for field_name in hdf5_fields.keys():
@@ -51,10 +54,10 @@ class XdmfGenerator:
                 fieldNames.append(field_name)
                 # check the dim
                 if gridDim:
-                    if gridDim != hdf5_fields[field_name].shape:
+                    if gridDim != hdf5_fields[field_name].shape[0:dimensions]:
                         raise Exception("All fields must be of same size")
                 else:
-                    gridDim = hdf5_fields[field_name].shape
+                    gridDim = hdf5_fields[field_name].shape[0:dimensions]
 
         # convert the gridDim to a string rep (note add one for cell/face info)
         grid_cell_dim_string = ' '.join(map(lambda d: str(d + 1), gridDim))
@@ -158,7 +161,3 @@ def parse():
 
     # write the xdmf file
     xdfm.write_to_file(xdmf_file)
-
-# parse based upon the supplied inputs
-if __name__ == "__main__":
-    parse()

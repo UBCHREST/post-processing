@@ -175,8 +175,10 @@ class ChrestData:
         grid = self.grid.copy()
         grid.reverse()
         shape.extend(grid)
+
         # this is where any components would be added
-        shape.extend(number_components)
+        if number_components > 1:
+            shape.append(number_components)
 
         # create the new field
         data = np.zeros(tuple(shape))
