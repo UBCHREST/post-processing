@@ -3,7 +3,7 @@ import pathlib
 import xml.etree.ElementTree as ET
 import h5py
 
-from chrest.supportPaths import expand_path
+from supportPaths import expand_path
 
 class XdmfGenerator:
     # The xdmf root
