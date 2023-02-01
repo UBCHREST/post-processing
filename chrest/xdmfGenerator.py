@@ -26,6 +26,10 @@ class XdmfGenerator:
         self.gridCollection.set('Name', 'TimeSeries')
 
     def append_chrest_hdf5(self, hdf5_file):
+        # make sure it is a path file
+        if isinstance(hdf5_file, str):
+            hdf5_file = pathlib.Path(hdf5_file)
+
         # Load in the hdf5 file
         hdf5 = h5py.File(hdf5_file, 'r')
 
@@ -83,7 +87,10 @@ class XdmfGenerator:
             write_data_item(fieldData, hdf5_fields[field_name], hdf5_file.name)
 
         # Store the time
-        self.timeHistory.append(hdf5_data.attrs['time'][0])
+        if hdf5_data.attrs['time'].dtype == float:
+            self.timeHistory.append(hdf5_data.attrs['time'])
+        else:
+            self.timeHistory.append(hdf5_data.attrs['time'][0])
 
     def write_to_file(self, xdmf_file):
         # add the full time history

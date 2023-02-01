@@ -131,3 +131,6 @@ dmypy.json
 # Clion/JetBrains
 # User-specific stuff
 /.idea
+
+# OS Files
+.DS_Store
