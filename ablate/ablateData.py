@@ -173,17 +173,41 @@ if __name__ == "__main__":
                         help='The path to the ablate hdf5 file(s) containing the ablate data.'
                              '  A wild card can be used '
                              'to supply more than one file.')
+    parser.add_argument('--start', dest='start', type=float,
+                        help='Optional starting point for chrest data. Default is [0., 0.0, -0.0127]',
+                        nargs='+', default=[0., 0.0, -0.0127]
+                        )
+
+    parser.add_argument('--end', dest='end', type=float,
+                        help='Optional ending point for chrest data. Default is [0.1, 0.0254, 0.0127]',
+                        nargs='+', default=[0.1, 0.0254, 0.0127]
+                        )
+
+    parser.add_argument('--delta', dest='delta', type=float,
+                        help='Optional grid spacingfor chrest data. Default is [0.0001, 0.0001, 0.0001]',
+                        nargs='+', default=[0.0001, 0.0001, 0.0001]
+                        )
+
+    parser.add_argument('--fields', dest='fields', type=str,
+                        help='The list of fields to map from ablate to chrest in format --field aux_temperature:temperature --field aux_velocity:vel',
+                        nargs='+', default=["aux_temperature:temperature", "aux_velocity:vel"]
+                        )
+
     args = parser.parse_args()
 
     # this is some example code for chest file post-processing
     ablate_data = AblateData(args.file)
 
-    # list the fields to map
-    field_mappings = {"aux_temperature": "temperature", "aux_velocity": "vel"}
+    # list the fields to mapvvccccnubehegivtfvvueu
+    field_mappings = dict()
+    for field_mapping in args.fields:
+        field_mapping_list = field_mapping.split(':')
+        field_mappings[field_mapping_list[0]] = field_mapping_list[1]
 
     # create a chrest data
     chrest_data = ChrestData()
-    chrest_data.setup_new_grid([0., 0.0, -0.0127], [0.1, 0.0254, 0.0127], [0.001, 0.001, 0.001])
+    chrest_data.setup_new_grid(args.start, args.end, args.delta)
+
     # map the ablate data to chrest
     ablate_data.map_to_chrest_data(chrest_data, field_mappings)
 
