@@ -7,7 +7,6 @@ import pandas as pd
 
 ignore_variable_list = ['avtOriginalNodeNumbers', 'avtOriginalCellNumbers']
 
-
 def parse_curve_file(path):
     # Using readline()
     curve_file = open(path, 'r')

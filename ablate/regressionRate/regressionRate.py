@@ -1,14 +1,13 @@
 import argparse
 import math
 import pathlib
-import sys
 
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy
 
 from support.curveFileReader import parse_curve_file
-from support.supportPaths import expand_path
+from chrest.supportPaths import expand_path
 
 # parse based upon the supplied inputs
 if __name__ == "__main__":

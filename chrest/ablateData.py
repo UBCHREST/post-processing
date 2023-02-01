@@ -3,8 +3,8 @@ import pathlib
 import numpy as np
 import h5py
 
-from chrest.chrestData import ChrestData
-from support.supportPaths import expand_path
+from chrestData import ChrestData
+from supportPaths import expand_path
 from scipy.spatial import KDTree
 
 

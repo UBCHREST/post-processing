@@ -5,7 +5,7 @@ import cantera
 import h5py
 import yaml
 
-from support.supportPaths import expand_path
+from chrest.supportPaths import expand_path
 
 # parse based upon the supplied inputs
 if __name__ == "__main__":
