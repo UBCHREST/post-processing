@@ -5,6 +5,7 @@ import h5py
 
 from supportPaths import expand_path
 
+
 class XdmfGenerator:
     # The xdmf root
     xdmf = ET.Element('Xdmf')
@@ -108,7 +109,11 @@ class XdmfGenerator:
 
         # write to file
         tree = ET.ElementTree(self.xdmf)
-        # ET.indent(tree, space="\t", level=0)
+        try:
+            ET.indent(tree, space="\t", level=0)
+        except (Exception,):
+            print("Could not format xml document")
+
         with open(xdmf_file, 'w') as f:
             f.write('<?xml version="1.0" ?>\n<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>\n')
             tree.write(f, xml_declaration=False, encoding='unicode')

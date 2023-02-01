@@ -57,6 +57,26 @@ class AblateData:
         self.times = list(self.files_per_time.keys())
         self.times.sort()
 
+        # Load in any available metadata based upon the file structure
+        self.metadata['path'] = str(self.files[0])
+
+        # load in the restart file
+        try:
+            restart_file = self.files[0].parent.parent/"restart.rst"
+            if restart_file.is_file():
+                self.metadata['restart.rst'] = restart_file.read_text()
+        except (Exception,):
+            print("Could not locate restart.rst for metadata")
+
+        # load in the restart file
+        try:
+            simulation_directory = self.files[0].parent.parent
+            yaml_files = list(simulation_directory.glob("*.yaml"))
+            for yaml_file in yaml_files:
+                self.metadata[yaml_file.name] = yaml_file.read_text()
+        except (Exception,):
+            print("Could not locate yaml files for metadata")
+
     """
     computes the cell center for each cell [c, d]
     """
@@ -138,7 +158,6 @@ class AblateData:
             components.append(components_tmp)
             chrest_field_data.append(chrest_data.create_field(chrest_field, components_tmp)[0])
 
-
         # build a list of k, j, i points to iterate over
         chrest_coords = chrest_data.get_coordinates()
 
@@ -165,6 +184,8 @@ class AblateData:
             # copy over the data
             chrest_field_data[f][:] = ablate_field_in_chrest_order[:]
 
+        # copy over the metadata
+        chrest_data.metadata = self.metadata
 
 # parse based upon the supplied inputs
 if __name__ == "__main__":
