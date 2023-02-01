@@ -108,7 +108,7 @@ class XdmfGenerator:
 
         # write to file
         tree = ET.ElementTree(self.xdmf)
-        ET.indent(tree, space="\t", level=0)
+        # ET.indent(tree, space="\t", level=0)
         with open(xdmf_file, 'w') as f:
             f.write('<?xml version="1.0" ?>\n<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>\n')
             tree.write(f, xml_declaration=False, encoding='unicode')
