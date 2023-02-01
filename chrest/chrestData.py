@@ -7,7 +7,6 @@ import h5py
 from xdmfGenerator import XdmfGenerator
 from supportPaths import expand_path
 
-
 class ChrestData:
     # a list of chrest files
     files = None

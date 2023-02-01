@@ -184,12 +184,12 @@ if __name__ == "__main__":
                         )
 
     parser.add_argument('--delta', dest='delta', type=float,
-                        help='Optional grid spacingfor chrest data. Default is [0.0001, 0.0001, 0.0001]',
-                        nargs='+', default=[0.0001, 0.0001, 0.0001]
+                        help='Optional grid spacing for chrest data. Default is [0.0005, 0.0005, 0.0005]',
+                        nargs='+', default=[0.0005, 0.0005, 0.0005]
                         )
 
     parser.add_argument('--fields', dest='fields', type=str,
-                        help='The list of fields to map from ablate to chrest in format --field aux_temperature:temperature --field aux_velocity:vel',
+                        help='The list of fields to map from ablate to chrest in format --field aux_temperature:temperature aux_velocity:vel',
                         nargs='+', default=["aux_temperature:temperature", "aux_velocity:vel"]
                         )
 
