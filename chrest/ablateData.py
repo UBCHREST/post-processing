@@ -9,19 +9,6 @@ from scipy.spatial import KDTree
 
 
 class AblateData:
-    # a list of ablate files
-    files = None
-
-    # store the files based upon time
-    files_per_time = dict()
-    times = []
-
-    # store the cells and vertices
-    cells = None
-    vertices = None
-
-    # load the metadata from the first file
-    metadata = dict()
 
     """
     Creates a new class from hdf5 chrest formatted file(s).
@@ -36,6 +23,17 @@ class AblateData:
             self.files = expand_path(files)
         else:
             self.files = files
+
+        # store the files based upon time
+        self.files_per_time = dict()
+        self.times = []
+
+        # store the cells and vertices
+        self.cells = None
+        self.vertices = None
+
+        # load the metadata from the first file
+        self.metadata = dict()
 
         # Open each file to get the time and check the available fields
         for file in self.files:

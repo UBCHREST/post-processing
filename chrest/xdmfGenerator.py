@@ -7,16 +7,16 @@ from supportPaths import expand_path
 
 
 class XdmfGenerator:
-    # The xdmf root
-    xdmf = ET.Element('Xdmf')
-
-    # the grid root, holds the times series
-    gridCollection = None
-
-    # The time history
-    timeHistory = []
-
     def __init__(self):
+        # The xdmf root
+        self.xdmf = ET.Element('Xdmf')
+
+        # the grid root, holds the times series
+        self.gridCollection = None
+
+        # The time history
+        self.timeHistory = []
+
         # setup the root datastructure
         domain = ET.SubElement(self.xdmf, 'Domain')
         self.gridCollection = ET.SubElement(domain, 'Grid')
@@ -112,7 +112,7 @@ class XdmfGenerator:
         try:
             ET.indent(tree, space="\t", level=0)
         except (Exception,):
-            print("Could not format xml document")
+            print("Could not pretty print xml document, continuing with default format.")
 
         with open(xdmf_file, 'w') as f:
             f.write('<?xml version="1.0" ?>\n<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>\n')

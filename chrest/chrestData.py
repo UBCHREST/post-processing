@@ -7,32 +7,8 @@ import h5py
 from xdmfGenerator import XdmfGenerator
 from supportPaths import expand_path
 
+
 class ChrestData:
-    # a list of chrest files
-    files = None
-
-    # store the files based upon time
-    files_per_time = dict()
-
-    # store the list of fields available
-    fields = []
-
-    # load the metadata from the first file
-    metadata = dict()
-
-    # store the grid information
-    start_point = []
-    end_point = []
-    delta = []
-    dimensions = 0
-    grid = []
-
-    # store the times available to the data
-    times = []
-
-    # store any newly created data
-    new_data = dict()
-
     """
     Creates a new class from hdf5 chrest formatted file(s).
     """
@@ -46,6 +22,29 @@ class ChrestData:
             self.files = expand_path(files)
         else:
             self.files = files
+
+        # Create the expected variables
+        # store the files based upon time
+        self.files_per_time = dict()
+
+        # store the list of fields available
+        self.fields = []
+
+        # load the metadata from the first file
+        self.metadata = dict()
+
+        # store the grid information
+        self.start_point = []
+        self.end_point = []
+        self.delta = []
+        self.dimensions = 0
+        self.grid = []
+
+        # store the times available to the data
+        self.times = []
+
+        # store any newly created data
+        self.new_data = dict()
 
         # Open each file to get the time and check the available fields
         for file in self.files:
@@ -124,6 +123,15 @@ class ChrestData:
             self.delta.append(0)
 
     """
+    Returns a copy of the chrest data with the same grid without any times/fields
+    """
+
+    def copy_grid(self):
+        chrest_data_copy = ChrestData()
+        chrest_data_copy.setup_new_grid(self.start_point, self.end_point, self.delta)
+        return chrest_data_copy
+
+    """
     Returns the field data for the specified time range as a single (numpy array) and times.
     The field should be [t, k, j, i]
     
@@ -166,7 +174,11 @@ class ChrestData:
 
     """
 
-    def create_field(self, field_name, number_components = 1):
+    def create_field(self, field_name, number_components=1):
+        # ensure at least one time
+        if len(self.times) == 0:
+            self.times.append(0.0)
+
         # determine the shape
         shape = [len(self.times)]
 
@@ -244,6 +256,31 @@ class ChrestData:
         # write the xdmf file
         xdfm.write_to_file(str(path_template) + ".xdmf")
 
+    """
+    Compute the mean and rms of a field and return in new chrest data
+    """
+
+    def compute_mean_rms(self, field_name):
+        # create a copy to store statistics
+        statistics_data = self.copy_grid()
+
+        # load in an example data
+        field_data, times = self.get_field(field_name)
+
+        # example to take avg rms of temperature
+        mean_field = field_data.mean(axis=0)
+        statistics_data.create_field(field_name + '_mean')[0][0] = mean_field
+
+        rms_field = statistics_data.create_field(field_name + '_rms')[0][0]
+        for t in range(len(times)):
+            rms_field[:] = np.add(rms_field[:], np.square(field_data[t, ...]))
+
+        rms_field[:] = rms_field[:] / len(times) - np.square(mean_field[:])
+        rms_field[:] = np.maximum(rms_field[:], 0)
+        rms_field[:] = np.sqrt(rms_field[:])
+
+        return statistics_data
+
 
 # parse based upon the supplied inputs
 if __name__ == "__main__":
@@ -253,24 +290,17 @@ if __name__ == "__main__":
     parser.add_argument('--file', dest='hdf5_file', type=pathlib.Path, required=True,
                         help='The path to the hdf5 file(s) containing the structured data.  A wild card can be used '
                              'to supply more than one file.')
+    parser.add_argument('--stats', dest='stats_file', type=pathlib.Path,
+                        help='Path to write stats file')
+    parser.add_argument('--field', dest='field', type=str,
+                        help='Path to the stats file', required=True, )
     args = parser.parse_args()
 
     # this is some example code for chest file post processing
     chrest_data = ChrestData(args.hdf5_file)
 
-    # load in an example data
-    field_data, times = chrest_data.get_field("flameTemp")
+    # compute the rms/mean
+    statistics_data = chrest_data.compute_mean_rms(args.field)
 
-    # get the coordinate data
-    coord_data = chrest_data.get_coordinates()
-
-    # Print off a row of information at each time
-    # for t in range(len(times)):
-    t = 0
-    time = chrest_data.times[t]
-    i = 0
-    j = 0
-    k = 0
-    for i in range(chrest_data.grid[0]):
-        print(time, " @", coord_data[k, j, i, 0], ", ", coord_data[k, j, i, 1], ", ", coord_data[k, j, i, 2], ": ",
-              field_data[t, k, j, i])
+    if args.stats_file is not None:
+        statistics_data.save(args.stats_file)
