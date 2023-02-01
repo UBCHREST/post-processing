@@ -5,7 +5,7 @@ import pathlib
 import h5py
 import numpy
 
-from support.supportPaths import expand_path
+from chrest.supportPaths import expand_path
 
 
 def find_cell_index(start, dx, search):

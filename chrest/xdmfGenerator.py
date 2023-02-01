@@ -3,19 +3,20 @@ import pathlib
 import xml.etree.ElementTree as ET
 import h5py
 
-from support.supportPaths import expand_path
+from supportPaths import expand_path
+
 
 class XdmfGenerator:
-    # The xdmf root
-    xdmf = ET.Element('Xdmf')
-
-    # the grid root, holds the times series
-    gridCollection = None
-
-    # The time history
-    timeHistory = []
-
     def __init__(self):
+        # The xdmf root
+        self.xdmf = ET.Element('Xdmf')
+
+        # the grid root, holds the times series
+        self.gridCollection = None
+
+        # The time history
+        self.timeHistory = []
+
         # setup the root datastructure
         domain = ET.SubElement(self.xdmf, 'Domain')
         self.gridCollection = ET.SubElement(domain, 'Grid')
@@ -26,6 +27,10 @@ class XdmfGenerator:
         self.gridCollection.set('Name', 'TimeSeries')
 
     def append_chrest_hdf5(self, hdf5_file):
+        # make sure it is a path file
+        if isinstance(hdf5_file, str):
+            hdf5_file = pathlib.Path(hdf5_file)
+
         # Load in the hdf5 file
         hdf5 = h5py.File(hdf5_file, 'r')
 
@@ -39,6 +44,9 @@ class XdmfGenerator:
         hdf5_fields = hdf5_data['fields']
         hdf5_grid = hdf5_data['grid']
 
+        # determine the number of dimensions
+        dimensions = hdf5_grid['start'].shape[0]
+
         # create a list of items to output
         fieldNames = []
         for field_name in hdf5_fields.keys():
@@ -47,10 +55,10 @@ class XdmfGenerator:
                 fieldNames.append(field_name)
                 # check the dim
                 if gridDim:
-                    if gridDim != hdf5_fields[field_name].shape:
+                    if gridDim != hdf5_fields[field_name].shape[0:dimensions]:
                         raise Exception("All fields must be of same size")
                 else:
-                    gridDim = hdf5_fields[field_name].shape
+                    gridDim = hdf5_fields[field_name].shape[0:dimensions]
 
         # convert the gridDim to a string rep (note add one for cell/face info)
         grid_cell_dim_string = ' '.join(map(lambda d: str(d + 1), gridDim))
@@ -83,7 +91,10 @@ class XdmfGenerator:
             write_data_item(fieldData, hdf5_fields[field_name], hdf5_file.name)
 
         # Store the time
-        self.timeHistory.append(hdf5_data.attrs['time'][0])
+        if hdf5_data.attrs['time'].dtype == float:
+            self.timeHistory.append(hdf5_data.attrs['time'])
+        else:
+            self.timeHistory.append(hdf5_data.attrs['time'][0])
 
     def write_to_file(self, xdmf_file):
         # add the full time history
@@ -98,7 +109,11 @@ class XdmfGenerator:
 
         # write to file
         tree = ET.ElementTree(self.xdmf)
-        ET.indent(tree, space="\t", level=0)
+        try:
+            ET.indent(tree, space="\t", level=0)
+        except (Exception,):
+            print("Could not pretty print xml document, continuing with default format.")
+
         with open(xdmf_file, 'w') as f:
             f.write('<?xml version="1.0" ?>\n<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>\n')
             tree.write(f, xml_declaration=False, encoding='unicode')
@@ -151,7 +166,3 @@ def parse():
 
     # write the xdmf file
     xdfm.write_to_file(xdmf_file)
-
-# parse based upon the supplied inputs
-if __name__ == "__main__":
-    parse()

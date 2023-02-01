@@ -4,32 +4,11 @@ import sys
 import numpy as np
 import h5py
 
-from support.supportPaths import expand_path
+from xdmfGenerator import XdmfGenerator
+from supportPaths import expand_path
 
 
 class ChrestData:
-    # a list of chrest files
-    files = None
-
-    # store the files based upon time
-    files_per_time = dict()
-
-    # store the list of fields available
-    fields = []
-
-    # load the metadata from the first file
-    metadata = dict()
-
-    # store the grid information
-    start_point = []
-    end_point = []
-    delta = []
-    dimensions = 0
-    grid = []
-
-    # store the times available to the data
-    times = []
-
     """
     Creates a new class from hdf5 chrest formatted file(s).
     """
@@ -43,6 +22,29 @@ class ChrestData:
             self.files = expand_path(files)
         else:
             self.files = files
+
+        # Create the expected variables
+        # store the files based upon time
+        self.files_per_time = dict()
+
+        # store the list of fields available
+        self.fields = []
+
+        # load the metadata from the first file
+        self.metadata = dict()
+
+        # store the grid information
+        self.start_point = []
+        self.end_point = []
+        self.delta = []
+        self.dimensions = 0
+        self.grid = []
+
+        # store the times available to the data
+        self.times = []
+
+        # store any newly created data
+        self.new_data = dict()
 
         # Open each file to get the time and check the available fields
         for file in self.files:
@@ -62,8 +64,8 @@ class ChrestData:
                 self.fields = list(hdf5_fields.keys())
 
                 # get the fields and other data
-            t = hdf5_data.attrs['time'][0]
-            self.files_per_time[t] = file
+            tt = hdf5_data.attrs['time'][0]
+            self.files_per_time[tt] = file
 
             # Load in the metadata
             if ~ len(self.metadata):
@@ -77,9 +79,17 @@ class ChrestData:
             self.end_point = hdf5_grid['end'][:, 0].tolist()
             self.delta = hdf5_grid['discretization'][:, 0].tolist()
             self.dimensions = len(self.start_point)
+            self.grid = []
 
             for dim in range(self.dimensions):
                 self.grid.append(int((self.end_point[dim] - self.start_point[dim]) / self.delta[dim]))
+
+            # if the dim is less than 3, add addition components
+            for d in range(self.dimensions, 3):
+                self.start_point.append(0)
+                self.end_point.append(0)
+                self.grid.append(1)
+                self.delta.append(0)
 
         # Store the list of times
         self.times = list(self.files_per_time.keys())
@@ -92,34 +102,51 @@ class ChrestData:
     cells: the number of cells in each direction
     """
 
-    def setup_new_grid(self, start_point, end_point, cells):
+    def setup_new_grid(self, start_point, end_point, delta):
         if len(self.start_point):
             raise Exception("A new grid cannot be setup if a current grid exists.")
 
         self.dimensions = len(start_point)
         self.start_point = start_point
         self.end_point = end_point
-        self.grid = cells
+        self.delta = delta
 
         # compute delta
         for dim in range(self.dimensions):
-            self.delta.append((self.end_point[dim] - self.start_point[dim]) / self.grid[dim])
+            self.grid.append(int((self.end_point[dim] - self.start_point[dim]) / self.delta[dim]))
+
+        # if the dim is less than 3, add addition components
+        for d in range(self.dimensions, 3):
+            self.start_point.append(0)
+            self.end_point.append(0)
+            self.grid.append(1)
+            self.delta.append(0)
 
     """
-    Returns the field data for the specified time range as a list of pairs(time, numpy array).
-    The field should be [k, j, i]
+    Returns a copy of the chrest data with the same grid without any times/fields
+    """
+
+    def copy_grid(self):
+        chrest_data_copy = ChrestData()
+        chrest_data_copy.setup_new_grid(self.start_point, self.end_point, self.delta)
+        return chrest_data_copy
+
+    """
+    Returns the field data for the specified time range as a single (numpy array) and times.
+    The field should be [t, k, j, i]
     
     """
 
     def get_field(self, field_name, min_time=-sys.float_info.max, max_time=sys.float_info.max):
         # create a dictionary of times/data
         data = []
-
+        field_times = []
         # march over the files
-        for t in self.times:
-            if min_time <= t <= max_time:
+        for tt in self.times:
+            if min_time <= tt <= max_time:
+                field_times.append(tt)
                 # Load in the file
-                with h5py.File(self.files_per_time[t], 'r') as hdf5:
+                with h5py.File(self.files_per_time[tt], 'r') as hdf5:
                     # Check each of the cell fields
                     hdf5_fields = hdf5['data/fields']
 
@@ -127,23 +154,61 @@ class ChrestData:
                         # load in the specified field name
                         hdf5_field = hdf5_fields[field_name]
 
-                        data.append((t, hdf5_field[:]))
+                        # prefix any required dummy axes (like k in 2d)
+                        hdf5_field_data = hdf5_field[:]
+
+                        for axis in range(self.dimensions, len(self.grid)):
+                            hdf5_field_data = np.expand_dims(hdf5_field_data, axis=0)
+
+                        data.append(hdf5_field_data)
                     except Exception as e:
                         raise Exception(
-                            "Unable to open field " + field_name + ". Valid fields include: " + ','.join(self.fields))
+                            "Unable to open field " + field_name + ". Valid fields include: " + ','.join(
+                                self.fields) + ". " + str(e))
 
-        return data
+        return np.stack(data), field_times
+
+    """
+    Creates and returns a new field (numpy array) and times.
+    The field should be [t, k, j, i, c]
+
+    """
+
+    def create_field(self, field_name, number_components=1):
+        # ensure at least one time
+        if len(self.times) == 0:
+            self.times.append(0.0)
+
+        # determine the shape
+        shape = [len(self.times)]
+
+        # add in each grid, note the reverse for k, j, i formatting
+        grid = self.grid.copy()
+        grid.reverse()
+        shape.extend(grid)
+
+        # this is where any components would be added
+        if number_components > 1:
+            shape.append(number_components)
+
+        # create the new field
+        data = np.zeros(tuple(shape))
+
+        # store it for future output
+        self.new_data[field_name] = data
+
+        return data, self.times
 
     """
     Returns an numpy array of coordinates
-    [dim][k][j][i]
+    [k, j, i, dim]
     """
 
     def get_coordinates(self):
         # Note we reverse the order of the linespaces and the returning grid for k,j,i index
         # create a list of line spaces
         linspaces = []
-        for dim in range(self.dimensions):
+        for dim in range(len(self.grid)):
             linspaces.append(
                 np.linspace(self.start_point[dim] + self.delta[dim] / 2.0, self.end_point[dim] - self.delta[dim] / 2.0,
                             self.grid[dim], endpoint=True))
@@ -153,16 +218,17 @@ class ChrestData:
         # compute the multi dim grid
         grid = np.meshgrid(*linspaces, indexing='ij')
         grid.reverse()
-        return grid
+        return np.stack(grid, axis=-1)
 
     # Save any new data into a new file
     def save(self, path_template):
-        # march over the files
-        index = 0
+        # generate an xdfm object at the same time
+        xdfm = XdmfGenerator()
 
-        for t in self.times:
+        # march over the files
+        for index in range(len(self.times)):
             # Name the file
-            hdf5_path = path_template + f".{index:05d}.hdf5"
+            hdf5_path = str(path_template) + f".{index:05d}.hdf5"
 
             # Open a new file
             with h5py.File(hdf5_path, 'w') as hdf5:
@@ -171,13 +237,49 @@ class ChrestData:
                 # store the metadata
                 for key in self.metadata:
                     data.attrs.create(key, self.metadata[key])
-                data.attrs.create('time', t)
+                data.attrs.create('time', self.times[index])
 
                 # write the grid information
                 grid = data.create_group('grid')
                 grid.create_dataset('start', data=np.asarray(self.start_point))
                 grid.create_dataset('end', data=np.asarray(self.end_point))
                 grid.create_dataset('discretization', data=np.asarray(self.delta))
+
+                # save any fields
+                fields = data.create_group('fields')
+                for field in self.new_data:
+                    fields.create_dataset(field, data=self.new_data[field][index])
+
+                # add to the xdfm info
+                xdfm.append_chrest_hdf5(hdf5_path)
+
+        # write the xdmf file
+        xdfm.write_to_file(str(path_template) + ".xdmf")
+
+    """
+    Compute the mean and rms of a field and return in new chrest data
+    """
+
+    def compute_mean_rms(self, field_name):
+        # create a copy to store statistics
+        statistics_data = self.copy_grid()
+
+        # load in an example data
+        field_data, times = self.get_field(field_name)
+
+        # example to take avg rms of temperature
+        mean_field = field_data.mean(axis=0)
+        statistics_data.create_field(field_name + '_mean')[0][0] = mean_field
+
+        rms_field = statistics_data.create_field(field_name + '_rms')[0][0]
+        for t in range(len(times)):
+            rms_field[:] = np.add(rms_field[:], np.square(field_data[t, ...]))
+
+        rms_field[:] = rms_field[:] / len(times) - np.square(mean_field[:])
+        rms_field[:] = np.maximum(rms_field[:], 0)
+        rms_field[:] = np.sqrt(rms_field[:])
+
+        return statistics_data
 
 
 # parse based upon the supplied inputs
@@ -188,22 +290,17 @@ if __name__ == "__main__":
     parser.add_argument('--file', dest='hdf5_file', type=pathlib.Path, required=True,
                         help='The path to the hdf5 file(s) containing the structured data.  A wild card can be used '
                              'to supply more than one file.')
+    parser.add_argument('--stats', dest='stats_file', type=pathlib.Path,
+                        help='Path to write stats file')
+    parser.add_argument('--field', dest='field', type=str,
+                        help='Path to the stats file', required=True, )
     args = parser.parse_args()
 
     # this is some example code for chest file post processing
     chrest_data = ChrestData(args.hdf5_file)
 
-    # load in an example data
-    field_data = chrest_data.get_field("flameTemp")
+    # compute the rms/mean
+    statistics_data = chrest_data.compute_mean_rms(args.field)
 
-    # get the coordinate data
-    coord_data = chrest_data.get_coordinates()
-
-    # Print off a row of information at each time
-    for (time, flame_temp) in field_data:
-        i = 0
-        j = 0
-        k = 0
-        for i in range(chrest_data.grid[0]):
-            print(time, " @", coord_data[0][k, j, i], ", ", coord_data[1][k, j, i], ", ", coord_data[2][k, j, i], ": ",
-                  flame_temp[k, j, i])
+    if args.stats_file is not None:
+        statistics_data.save(args.stats_file)
