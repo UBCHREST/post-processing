@@ -42,7 +42,7 @@ class AblateData:
             # If not set, copy over the cells and vertices
             if self.cells is None:
                 self.cells = hdf5["viz"]["topology"]["cells"]
-                self.vertices = hdf5["geometry"]["vertices"]
+                self.vertices = hdf5["geometry"]["vertices"][:]
 
             # extract the time
             time = hdf5['time'][0][0]
@@ -88,9 +88,20 @@ class AblateData:
         return fields_names
 
     """
+    Flattens a coordinate to zero
+    """
+    def flatten_coordinate(self, d):
+        self.vertices[:, d] = 0.0
+
+    """
+    Removes a coordinate to zero
+    """
+    def remove_coordinate(self, dir):
+        self.vertices = np.delete(self.vertices, dir, axis=1)
+
+    """
     computes the cell center for each cell [c, d]
     """
-
     def compute_cell_centers(self, dimensions):
         # create a new np array based upon the dim
         number_cells = self.cells.shape[0]
@@ -148,7 +159,7 @@ class AblateData:
         # get the cell centers for this mesh
         cell_centers = self.compute_cell_centers(chrest_data.dimensions)
 
-        # add all the ablate times to chrest
+        # add the ablate times to chrest
         chrest_data.times = self.times.copy()
 
         # store the fields in ablate we need
@@ -229,6 +240,12 @@ if __name__ == "__main__":
                         help='If true, prints the fields available to convert', default=False
                         )
 
+    parser.add_argument('--flatten_coord', dest='flatten_coord', type=int, help="Flatten a coordinate direction (set direction to zero)",
+                        nargs='+', default=[])
+
+    parser.add_argument('--remove_coord', dest='remove_coord', type=int, help="Remove a coordinate direction (i.e. x,y,z to x,z)",
+                        nargs='+', default=[])
+
     args = parser.parse_args()
 
     # this is some example code for chest file post-processing
@@ -237,7 +254,13 @@ if __name__ == "__main__":
     if args.print_fields:
         print("Available fields: ", ', '.join(ablate_data.get_fields()))
 
-    # list the fields to mapvvccccnubehegivtfvvueu
+    # check to see if any coords should be removed
+    for coord in args.flatten_coord:
+        ablate_data.flatten_coordinate(coord)
+    for coord in args.remove_coord:
+        ablate_data.remove_coordinate(coord)
+
+    # list the fields to map
     field_mappings = dict()
     for field_mapping in args.fields:
         field_mapping_list = field_mapping.split(':')
