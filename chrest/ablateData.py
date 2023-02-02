@@ -225,7 +225,7 @@ if __name__ == "__main__":
                         nargs='+', default=["aux_temperature:temperature", "aux_velocity:vel"]
                         )
 
-    parser.add_argument('--print_fields', dest='print_fields', action=argparse.BooleanOptionalAction,
+    parser.add_argument('--print_fields', dest='print_fields', action='store_true',
                         help='If true, prints the fields available to convert', default=False
                         )
 
