@@ -9,7 +9,6 @@ from scipy.spatial import KDTree
 
 
 class AblateData:
-
     """
     Creates a new class from hdf5 chrest formatted file(s).
     """
@@ -60,7 +59,7 @@ class AblateData:
 
         # load in the restart file
         try:
-            restart_file = self.files[0].parent.parent/"restart.rst"
+            restart_file = self.files[0].parent.parent / "restart.rst"
             if restart_file.is_file():
                 self.metadata['restart.rst'] = restart_file.read_text()
         except (Exception,):
@@ -74,6 +73,19 @@ class AblateData:
                 self.metadata[yaml_file.name] = yaml_file.read_text()
         except (Exception,):
             print("Could not locate yaml files for metadata")
+
+    """
+    Reports the fields from each the file
+    """
+
+    def get_fields(self):
+        fields_names = []
+
+        if len(self.files) > 0:
+            with h5py.File(self.files[0], 'r') as hdf5:
+                fields_names.extend(hdf5['cell_fields'].keys())
+
+        return fields_names
 
     """
     computes the cell center for each cell [c, d]
@@ -150,7 +162,7 @@ class AblateData:
         # create the new field in the chrest data
         for ablate_field in ablate_fields:
             chrest_field = field_mapping[ablate_field]
-            ablate_field_data_tmp, components_tmp  = self.get_field(ablate_field)
+            ablate_field_data_tmp, components_tmp = self.get_field(ablate_field)
 
             ablate_field_data.append(ablate_field_data_tmp)
             components.append(components_tmp)
@@ -185,6 +197,7 @@ class AblateData:
         # copy over the metadata
         chrest_data.metadata = self.metadata
 
+
 # parse based upon the supplied inputs
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate a chrest data file from an ablate file')
@@ -212,10 +225,17 @@ if __name__ == "__main__":
                         nargs='+', default=["aux_temperature:temperature", "aux_velocity:vel"]
                         )
 
+    parser.add_argument('--print_fields', dest='print_fields', action=argparse.BooleanOptionalAction,
+                        help='If true, prints the fields available to convert', default=False
+                        )
+
     args = parser.parse_args()
 
     # this is some example code for chest file post-processing
     ablate_data = AblateData(args.file)
+
+    if args.print_fields:
+        print("Available fields: ", ', '.join(ablate_data.get_fields()))
 
     # list the fields to mapvvccccnubehegivtfvvueu
     field_mappings = dict()
