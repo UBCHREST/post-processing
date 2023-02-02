@@ -208,7 +208,7 @@ class ChrestData:
         # Note we reverse the order of the linespaces and the returning grid for k,j,i index
         # create a list of line spaces
         linspaces = []
-        for dim in range(len(self.grid)):
+        for dim in range(self.dimensions):
             linspaces.append(
                 np.linspace(self.start_point[dim] + self.delta[dim] / 2.0, self.end_point[dim] - self.delta[dim] / 2.0,
                             self.grid[dim], endpoint=True))
