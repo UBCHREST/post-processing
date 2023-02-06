@@ -64,20 +64,30 @@ class ChrestData:
                 self.fields = list(hdf5_fields.keys())
 
                 # get the fields and other data
-            tt = hdf5_data.attrs['time'][0]
+            if len(hdf5_data.attrs['time'].shape) == 0:
+                tt = hdf5_data.attrs['time']
+            else:
+                tt = hdf5_data.attrs['time'][0]
             self.files_per_time[tt] = file
 
             # Load in the metadata
             if ~ len(self.metadata):
                 for (key, value) in hdf5_data.attrs.items():
-                    if h5py.check_string_dtype(value.dtype):
+                    if isinstance(value, str):
+                        self.metadata[key] = value
+                    elif h5py.check_string_dtype(value.dtype):
                         self.metadata[key] = value[0]
 
             # store the grid information, it is assumed to be the same for each file
             hdf5_grid = hdf5_data['grid']
-            self.start_point = hdf5_grid['start'][:, 0].tolist()
-            self.end_point = hdf5_grid['end'][:, 0].tolist()
-            self.delta = hdf5_grid['discretization'][:, 0].tolist()
+            if len(hdf5_grid['start'].shape) > 1:
+                self.start_point = hdf5_grid['start'][:, 0].tolist()
+                self.end_point = hdf5_grid['end'][:, 0].tolist()
+                self.delta = hdf5_grid['discretization'][:, 0].tolist()
+            else:
+                self.start_point = hdf5_grid['start'][:].tolist()
+                self.end_point = hdf5_grid['end'][:].tolist()
+                self.delta = hdf5_grid['discretization'][:].tolist()
             self.dimensions = len(self.start_point)
             self.grid = []
 
@@ -284,9 +294,10 @@ class ChrestData:
 
 # parse based upon the supplied inputs
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Generate an xdmf file from MatLab data files holding structed data. '
-                                                 'See https://github.com/cet-lab/experimental-post-processing/wiki'
-                                                 '/Matlab-To-XdmfGenerator for details.  ')
+    parser = argparse.ArgumentParser(
+        description='Generate an xdmf file from MatLab data files holding structured data. '
+                    'See https://github.com/cet-lab/experimental-post-processing/wiki'
+                    '/Matlab-To-XdmfGenerator for details.  ')
     parser.add_argument('--file', dest='hdf5_file', type=pathlib.Path, required=True,
                         help='The path to the hdf5 file(s) containing the structured data.  A wild card can be used '
                              'to supply more than one file.')

@@ -139,9 +139,8 @@ geometry_type = {
     3: "Origin_DxDyDz"
 }
 
-
 # Main function to parser input files and run the document generator
-def parse():
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate an xdmf file from MatLab data files holding structed data. '
                                                  'See https://github.com/cet-lab/experimental-post-processing/wiki'
                                                  '/Matlab-To-XdmfGenerator for details.  ')
