@@ -92,7 +92,10 @@ class ChrestData:
             self.grid = []
 
             for dim in range(self.dimensions):
-                self.grid.append(int((self.end_point[dim] - self.start_point[dim]) / self.delta[dim]))
+                if self.delta[dim] <= 0.0:
+                    self.grid.append(1)
+                else:
+                    self.grid.append(int((self.end_point[dim] - self.start_point[dim]) / self.delta[dim]))
 
             # if the dim is less than 3, add addition components
             for d in range(self.dimensions, 3):
@@ -123,7 +126,10 @@ class ChrestData:
 
         # compute delta
         for dim in range(self.dimensions):
-            self.grid.append(int((self.end_point[dim] - self.start_point[dim]) / self.delta[dim]))
+            if self.delta[dim] <= 0.0:
+                self.grid.append(1)
+            else:
+                self.grid.append(int((self.end_point[dim] - self.start_point[dim]) / self.delta[dim]))
 
         # if the dim is less than 3, add addition components
         for d in range(self.dimensions, 3):
@@ -260,8 +266,8 @@ class ChrestData:
                 for field in self.new_data:
                     fields.create_dataset(field, data=self.new_data[field][index])
 
-                # add to the xdfm info
-                xdfm.append_chrest_hdf5(hdf5_path)
+            # add to the xdfm info
+            xdfm.append_chrest_hdf5(hdf5_path)
 
         # write the xdmf file
         xdfm.write_to_file(str(path_template) + ".xdmf")
@@ -270,26 +276,33 @@ class ChrestData:
     Compute the mean and rms of a field and return in new chrest data
     """
 
-    def compute_mean_rms(self, field_name):
+    def compute_mean_rms(self, field_name, field_data):
         # create a copy to store statistics
         statistics_data = self.copy_grid()
-
-        # load in an example data
-        field_data, times = self.get_field(field_name)
 
         # example to take avg rms of temperature
         mean_field = field_data.mean(axis=0)
         statistics_data.create_field(field_name + '_mean')[0][0] = mean_field
 
         rms_field = statistics_data.create_field(field_name + '_rms')[0][0]
-        for t in range(len(times)):
+        for t in range(field_data.shape[0]):
             rms_field[:] = np.add(rms_field[:], np.square(field_data[t, ...]))
 
-        rms_field[:] = rms_field[:] / len(times) - np.square(mean_field[:])
+        rms_field[:] = rms_field[:] / field_data.shape[0] - np.square(mean_field[:])
         rms_field[:] = np.maximum(rms_field[:], 0)
         rms_field[:] = np.sqrt(rms_field[:])
 
         return statistics_data
+
+    """
+    Compute the mean and rms of a field and return in new chrest data
+    """
+
+    def compute_mean_rms_field_name(self, field_name):
+        # load in an example data
+        field_data = self.get_field(field_name)[0]
+
+        return self.compute_mean_rms(field_name, field_data)
 
 
 # parse based upon the supplied inputs
@@ -311,7 +324,7 @@ if __name__ == "__main__":
     chrest_data = ChrestData(args.hdf5_file)
 
     # compute the rms/mean
-    statistics_data = chrest_data.compute_mean_rms(args.field)
+    statistics_data = chrest_data.compute_mean_rms_field_name(args.field)
 
     if args.stats_file is not None:
         statistics_data.save(args.stats_file)

@@ -51,7 +51,7 @@ class XdmfGenerator:
         fieldNames = []
         for field_name in hdf5_fields.keys():
             # if field data
-            if hdf5_fields[field_name].ndim > 1 and hdf5_fields[field_name].shape[1] > 1:
+            if hdf5_fields[field_name].ndim > 1 :
                 fieldNames.append(field_name)
                 # check the dim
                 if gridDim:
