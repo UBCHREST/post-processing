@@ -1,5 +1,7 @@
 import argparse
 import pathlib
+import sys
+
 import numpy as np
 import h5py
 
@@ -87,21 +89,11 @@ class AblateData:
 
         return fields_names
 
-    """
-    Flattens a coordinate to zero
-    """
-    def flatten_coordinate(self, d):
-        self.vertices[:, d] = 0.0
-
-    """
-    Removes a coordinate to zero
-    """
-    def remove_coordinate(self, dir):
-        self.vertices = np.delete(self.vertices, dir, axis=1)
 
     """
     computes the cell center for each cell [c, d]
     """
+
     def compute_cell_centers(self, dimensions):
         # create a new np array based upon the dim
         number_cells = self.cells.shape[0]
@@ -155,7 +147,7 @@ class AblateData:
     converts the supplied fields ablate object to chrest data object
     """
 
-    def map_to_chrest_data(self, chrest_data, field_mapping):
+    def map_to_chrest_data(self, chrest_data, field_mapping, max_distance=sys.float_info.max):
         # get the cell centers for this mesh
         cell_centers = self.compute_cell_centers(chrest_data.dimensions)
 
@@ -190,12 +182,16 @@ class AblateData:
 
         # now search and copy over data
         tree = KDTree(cell_centers)
-        _, points = tree.query(chrest_cell_centers)
+        dist, points = tree.query(chrest_cell_centers)
 
         # march over each field
         for f in range(len(ablate_field_data)):
             # get in the correct order
             ablate_field_in_chrest_order = ablate_field_data[f][:, points]
+
+            setToZero = np.where(dist > max_distance)
+
+            ablate_field_in_chrest_order[:, setToZero] = 0.0
 
             # reshape it back to k,j,i
             ablate_field_in_chrest_order = ablate_field_in_chrest_order.reshape(
@@ -236,15 +232,12 @@ if __name__ == "__main__":
                         nargs='+', default=["aux_temperature:temperature", "aux_velocity:vel"]
                         )
 
-    parser.add_argument('--print_fields', dest='print_fields', action='store_true',
-                        help='If true, prints the fields available to convert', default=False
-                        )
-
-    parser.add_argument('--flatten_coord', dest='flatten_coord', type=int, help="Flatten a coordinate direction (set direction to zero)",
+    parser.add_argument('--remove_coord', dest='remove_coord', type=int,
+                        help="Remove a coordinate direction (i.e. x,y,z to x,z)",
                         nargs='+', default=[])
 
-    parser.add_argument('--remove_coord', dest='remove_coord', type=int, help="Remove a coordinate direction (i.e. x,y,z to x,z)",
-                        nargs='+', default=[])
+    parser.add_argument('--max_distance', dest='max_distance', type=float,
+                        help="The max distance to search for a point in ablate", default=sys.float_info.max)
 
     args = parser.parse_args()
 
@@ -253,12 +246,6 @@ if __name__ == "__main__":
 
     if args.print_fields:
         print("Available fields: ", ', '.join(ablate_data.get_fields()))
-
-    # check to see if any coords should be removed
-    for coord in args.flatten_coord:
-        ablate_data.flatten_coordinate(coord)
-    for coord in args.remove_coord:
-        ablate_data.remove_coordinate(coord)
 
     # list the fields to map
     field_mappings = dict()
@@ -271,7 +258,7 @@ if __name__ == "__main__":
     chrest_data.setup_new_grid(args.start, args.end, args.delta)
 
     # map the ablate data to chrest
-    ablate_data.map_to_chrest_data(chrest_data, field_mappings)
+    ablate_data.map_to_chrest_data(chrest_data, field_mappings, args.max_distance)
 
     # write the new file without wild card
     chrest_data_path_base = args.file.parent / (str(args.file.stem).replace("*", "") + ".chrest")
