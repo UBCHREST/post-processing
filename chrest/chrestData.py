@@ -46,6 +46,9 @@ class ChrestData:
         # store any newly created data
         self.new_data = dict()
 
+        # store an array of components names
+        self.new_data_component_names = dict()
+
         # Open each file to get the time and check the available fields
         for file in self.files:
             # Load in the hdf5 file
@@ -151,6 +154,7 @@ class ChrestData:
     Returns the field data for the specified time range as a single (numpy array) and times.
     The field should be [t, k, j, i]
     
+    returns field, times, component_names
     """
 
     def get_field(self, field_name, min_time=-sys.float_info.max, max_time=sys.float_info.max):
@@ -171,12 +175,13 @@ class ChrestData:
                         data.append(self.new_data[field_name][t, ...])
                     t += 1
 
-                return np.stack(data), field_times
+                return np.stack(data), field_times, self.new_data_component_names.get(field_name, None)
 
         else:  # load in the data from the file
             # create a dictionary of times/data
             data = []
             field_times = []
+            component_names = None
             # march over the files
             for tt in self.times:
                 if min_time <= tt <= max_time:
@@ -197,12 +202,16 @@ class ChrestData:
                                 hdf5_field_data = np.expand_dims(hdf5_field_data, axis=0)
 
                             data.append(hdf5_field_data)
+
+                            if 'components' in hdf5_field.attrs:
+                                component_names = hdf5_field.attrs['components'].tolist()
+
                         except Exception as e:
                             raise Exception(
                                 "Unable to open field " + field_name + ". Valid fields include: " + ','.join(
                                     self.fields) + ". " + str(e))
 
-            return np.stack(data), field_times
+            return np.stack(data), field_times, component_names
 
     """
     Creates and returns a new field (numpy array) and times.
@@ -210,7 +219,7 @@ class ChrestData:
 
     """
 
-    def create_field(self, field_name, number_components=1):
+    def create_field(self, field_name, number_components=1, component_names=None):
         # ensure at least one time
         if len(self.times) == 0:
             self.times.append(0.0)
@@ -232,6 +241,8 @@ class ChrestData:
 
         # store it for future output
         self.new_data[field_name] = data
+        if component_names is not None:
+            self.new_data_component_names[field_name] = component_names
 
         # add to the list of fields
         self.fields.append(field_name)
@@ -287,7 +298,9 @@ class ChrestData:
                 # save any fields
                 fields = data.create_group('fields')
                 for field in self.new_data:
-                    fields.create_dataset(field, data=self.new_data[field][index])
+                    newField = fields.create_dataset(field, data=self.new_data[field][index])
+                    if field in self.new_data_component_names:
+                        newField.attrs.create('components', self.new_data_component_names[field])
 
             # add to the xdfm info
             xdfm.append_chrest_hdf5(hdf5_path)
@@ -359,7 +372,9 @@ if __name__ == "__main__":
         print("Fields: ", statistics_data.fields)
 
         # get the rms of the field
-        rms_field, times = statistics_data.get_field(args.field + "_rms", -1.0)
+        rms_field, times, componentsNames = statistics_data.get_field(args.field + "_rms", -1.0)
 
         print(args.field + "_rms shape: ", rms_field.shape)
         print(args.field + "_rms times: ", times)
+
+

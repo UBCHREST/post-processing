@@ -124,6 +124,7 @@ class AblateData:
         # create a dictionary of times/data
         data = []
         components = 0
+        componentNames = None
         # march over the files
         for t in self.times:
             # Load in the file
@@ -137,11 +138,17 @@ class AblateData:
 
                     if len(hdf_field_data.shape) > 1:
                         components = hdf_field_data.shape[1]
+                        # check for component names
+                        componentNames = [""] * components
+
+                        for i in range(components):
+                            if ('componentName' + str(i)) in hdf5_field.attrs:
+                                componentNames[i] = hdf5_field.attrs['componentName' + str(i)].decode("utf-8")
                 except Exception as e:
                     raise Exception(
                         "Unable to open field " + field_name + "." + str(e))
 
-        return np.stack(data), components
+        return np.stack(data), components, componentNames
 
     """
     converts the supplied fields ablate object to chrest data object
@@ -165,11 +172,11 @@ class AblateData:
         # create the new field in the chrest data
         for ablate_field in ablate_fields:
             chrest_field = field_mapping[ablate_field]
-            ablate_field_data_tmp, components_tmp = self.get_field(ablate_field)
+            ablate_field_data_tmp, components_tmp, component_names = self.get_field(ablate_field)
 
             ablate_field_data.append(ablate_field_data_tmp)
             components.append(components_tmp)
-            chrest_field_data.append(chrest_data.create_field(chrest_field, components_tmp)[0])
+            chrest_field_data.append(chrest_data.create_field(chrest_field, components_tmp, component_names)[0])
 
         # build a list of k, j, i points to iterate over
         chrest_coords = chrest_data.get_coordinates()
