@@ -154,35 +154,55 @@ class ChrestData:
     """
 
     def get_field(self, field_name, min_time=-sys.float_info.max, max_time=sys.float_info.max):
-        # create a dictionary of times/data
-        data = []
-        field_times = []
-        # march over the files
-        for tt in self.times:
-            if min_time <= tt <= max_time:
-                field_times.append(tt)
-                # Load in the file
-                with h5py.File(self.files_per_time[tt], 'r') as hdf5:
-                    # Check each of the cell fields
-                    hdf5_fields = hdf5['data/fields']
+        # check if the field is in new data
+        if field_name in self.new_data.keys():
+            # do a quick check for the default
+            if min_time == -sys.float_info.max and max_time == sys.float_info.max:
+                return self.new_data[field_name], self.times
+            else:
+                # extract the data at the specified times
+                data = []
+                field_times = []
+                t = 0  # the time index
+                for tt in self.times:
+                    if min_time <= tt <= max_time:
+                        field_times.append(tt)
+                        # Load in the file
+                        data.append(self.new_data[field_name][t, ...])
+                    t += 1
 
-                    try:
-                        # load in the specified field name
-                        hdf5_field = hdf5_fields[field_name]
+                return np.stack(data), field_times
 
-                        # prefix any required dummy axes (like k in 2d)
-                        hdf5_field_data = hdf5_field[:]
+        else:  # load in the data from the file
+            # create a dictionary of times/data
+            data = []
+            field_times = []
+            # march over the files
+            for tt in self.times:
+                if min_time <= tt <= max_time:
+                    field_times.append(tt)
+                    # Load in the file
+                    with h5py.File(self.files_per_time[tt], 'r') as hdf5:
+                        # Check each of the cell fields
+                        hdf5_fields = hdf5['data/fields']
 
-                        for axis in range(self.dimensions, len(self.grid)):
-                            hdf5_field_data = np.expand_dims(hdf5_field_data, axis=0)
+                        try:
+                            # load in the specified field name
+                            hdf5_field = hdf5_fields[field_name]
 
-                        data.append(hdf5_field_data)
-                    except Exception as e:
-                        raise Exception(
-                            "Unable to open field " + field_name + ". Valid fields include: " + ','.join(
-                                self.fields) + ". " + str(e))
+                            # prefix any required dummy axes (like k in 2d)
+                            hdf5_field_data = hdf5_field[:]
 
-        return np.stack(data), field_times
+                            for axis in range(self.dimensions, len(self.grid)):
+                                hdf5_field_data = np.expand_dims(hdf5_field_data, axis=0)
+
+                            data.append(hdf5_field_data)
+                        except Exception as e:
+                            raise Exception(
+                                "Unable to open field " + field_name + ". Valid fields include: " + ','.join(
+                                    self.fields) + ". " + str(e))
+
+            return np.stack(data), field_times
 
     """
     Creates and returns a new field (numpy array) and times.
@@ -212,6 +232,9 @@ class ChrestData:
 
         # store it for future output
         self.new_data[field_name] = data
+
+        # add to the list of fields
+        self.fields.append(field_name)
 
         return data, self.times
 
@@ -318,6 +341,8 @@ if __name__ == "__main__":
                         help='Path to write stats file')
     parser.add_argument('--field', dest='field', type=str,
                         help='Path to the stats file', required=True, )
+    parser.add_argument('--example', dest='example', action='store_true',
+                        help='If true, runs through access example', default=False)
     args = parser.parse_args()
 
     # this is some example code for chest file post processing
@@ -328,3 +353,13 @@ if __name__ == "__main__":
 
     if args.stats_file is not None:
         statistics_data.save(args.stats_file)
+
+    if args.example:
+        # this is an example of accessing the resulted statistics_data
+        print("Fields: ", statistics_data.fields)
+
+        # get the rms of the field
+        rms_field, times = statistics_data.get_field(args.field + "_rms", -1.0)
+
+        print(args.field + "_rms shape: ", rms_field.shape)
+        print(args.field + "_rms times: ", times)
