@@ -232,9 +232,9 @@ if __name__ == "__main__":
                         nargs='+', default=["aux_temperature:temperature", "aux_velocity:vel"]
                         )
 
-    parser.add_argument('--remove_coord', dest='remove_coord', type=int,
-                        help="Remove a coordinate direction (i.e. x,y,z to x,z)",
-                        nargs='+', default=[])
+    parser.add_argument('--print_fields', dest='print_fields', action='store_true',
+                        help='If true, prints the fields available to convert', default=False
+                        )
 
     parser.add_argument('--max_distance', dest='max_distance', type=float,
                         help="The max distance to search for a point in ablate", default=sys.float_info.max)
