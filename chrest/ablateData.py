@@ -89,7 +89,6 @@ class AblateData:
 
         return fields_names
 
-
     """
     computes the cell center for each cell [c, d]
     """
@@ -120,11 +119,11 @@ class AblateData:
     gets the specified field and the number of components
     """
 
-    def get_field(self, field_name):
+    def get_field(self, field_name, component_names=None):
         # create a dictionary of times/data
         data = []
         components = 0
-        componentNames = None
+        all_component_names = None
         # march over the files
         for t in self.times:
             # Load in the file
@@ -132,29 +131,52 @@ class AblateData:
                 try:
                     # Check each of the cell fields
                     hdf5_field = hdf5['cell_fields'][field_name]
-                    # load in the specified field name
-                    hdf_field_data = hdf5_field[0, :]
-                    data.append(hdf_field_data)
 
-                    if len(hdf_field_data.shape) > 1:
-                        components = hdf_field_data.shape[1]
+                    if len(hdf5_field[0, :].shape) > 1:
+                        components = hdf5_field[0, :].shape[1]
                         # check for component names
-                        componentNames = [""] * components
+                        all_component_names = [""] * components
 
                         for i in range(components):
                             if ('componentName' + str(i)) in hdf5_field.attrs:
-                                componentNames[i] = hdf5_field.attrs['componentName' + str(i)].decode("utf-8")
+                                all_component_names[i] = hdf5_field.attrs['componentName' + str(i)].decode("utf-8")
+
+                    # load in the specified field name, but check if we should down select components
+                    if component_names is None:
+                        hdf_field_data = hdf5_field[0, :]
+                        data.append(hdf_field_data)
+                    else:
+                        # get the indexes
+                        indexes = []
+                        for component_name in component_names:
+                            try:
+                                indexes.append(all_component_names.index(component_name))
+                            except ValueError as error:
+                                raise Exception("Cannot locate " + component_name + " in field " + field_name + ". ",
+                                                error)
+
+                        # sort the index list in order
+                        index_name_list = zip(indexes, component_names)
+                        index_name_list = sorted(index_name_list)
+                        indexes, component_names = zip(*index_name_list)
+
+                        # down select only the components that were asked for
+                        hdf_field_data = hdf5_field[0, ..., list(indexes)]
+                        data.append(hdf_field_data)
+                        all_component_names = list(component_names)
+                        components = len(all_component_names)
                 except Exception as e:
                     raise Exception(
                         "Unable to open field " + field_name + "." + str(e))
 
-        return np.stack(data), components, componentNames
+        return np.stack(data), components, all_component_names
 
     """
-    converts the supplied fields ablate object to chrest data object
+    converts the supplied fields ablate object to chrest data object.
     """
 
-    def map_to_chrest_data(self, chrest_data, field_mapping, max_distance=sys.float_info.max):
+    def map_to_chrest_data(self, chrest_data, field_mapping, field_select_components=dict(),
+                           max_distance=sys.float_info.max):
         # get the cell centers for this mesh
         cell_centers = self.compute_cell_centers(chrest_data.dimensions)
 
@@ -172,7 +194,13 @@ class AblateData:
         # create the new field in the chrest data
         for ablate_field in ablate_fields:
             chrest_field = field_mapping[ablate_field]
-            ablate_field_data_tmp, components_tmp, component_names = self.get_field(ablate_field)
+
+            # check to see if there is a down selection of components
+            component_select_names = field_select_components.get(ablate_field)
+
+            # get the field from ablate
+            ablate_field_data_tmp, components_tmp, component_names = self.get_field(ablate_field,
+                                                                                    component_select_names)
 
             ablate_field_data.append(ablate_field_data_tmp)
             components.append(components_tmp)
@@ -235,7 +263,9 @@ if __name__ == "__main__":
                         )
 
     parser.add_argument('--fields', dest='fields', type=str,
-                        help='The list of fields to map from ablate to chrest in format --field aux_temperature:temperature aux_velocity:vel',
+                        help='The list of fields to map from ablate to chrest in format  --field '
+                             'ablate_name:chrest_name:components --field aux_temperature:temperature '
+                             'aux_velocity:vel. Components are optional list such as H2,N2',
                         nargs='+', default=["aux_temperature:temperature", "aux_velocity:vel"]
                         )
 
@@ -256,16 +286,21 @@ if __name__ == "__main__":
 
     # list the fields to map
     field_mappings = dict()
+    component_select_names = dict()
     for field_mapping in args.fields:
         field_mapping_list = field_mapping.split(':')
         field_mappings[field_mapping_list[0]] = field_mapping_list[1]
+
+        # check to see if there are select components
+        if len(field_mapping_list) > 2:
+            component_select_names[field_mapping_list[0]] = field_mapping_list[2].split(',')
 
     # create a chrest data
     chrest_data = ChrestData()
     chrest_data.setup_new_grid(args.start, args.end, args.delta)
 
     # map the ablate data to chrest
-    ablate_data.map_to_chrest_data(chrest_data, field_mappings, args.max_distance)
+    ablate_data.map_to_chrest_data(chrest_data, field_mappings, component_select_names, args.max_distance)
 
     # write the new file without wild card
     chrest_data_path_base = args.file.parent / (str(args.file.stem).replace("*", "") + ".chrest")

@@ -51,7 +51,7 @@ class XdmfGenerator:
         fieldNames = []
         for field_name in hdf5_fields.keys():
             # if field data
-            if hdf5_fields[field_name].ndim > 1 :
+            if hdf5_fields[field_name].ndim > 1:
                 fieldNames.append(field_name)
                 # check the dim
                 if gridDim:
@@ -84,11 +84,26 @@ class XdmfGenerator:
 
         # Add in the field data
         for field_name in fieldNames:
-            fieldData = ET.SubElement(grid, 'Attribute')
-            fieldData.set('Name', field_name)
-            fieldData.set('AttributeType', 'Scalar')
-            fieldData.set('Center', 'Cell')
-            write_data_item(fieldData, hdf5_fields[field_name], hdf5_file.name)
+            # if there are component names write each component out separately
+            hdf5_field_data = hdf5_fields[field_name]
+            component_names = None
+            if 'components' in hdf5_field_data.attrs:
+                component_names = hdf5_field_data.attrs['components'].tolist()
+
+            # write each component as a separate index
+            if component_names is not None and len(hdf5_field_data.shape) > 3:
+                for component_index in range(len(component_names)):
+                    fieldData = ET.SubElement(grid, 'Attribute')
+                    fieldData.set('Name', field_name + "_" + component_names[component_index])
+                    fieldData.set('Type', 'Scalar')
+                    fieldData.set('Center', 'Cell')
+                    write_data_hyper_slab_item(fieldData, hdf5_field_data, hdf5_file.name, component_index)
+            else:
+                fieldData = ET.SubElement(grid, 'Attribute')
+                fieldData.set('Name', field_name)
+                fieldData.set('AttributeType', 'Scalar')
+                fieldData.set('Center', 'Cell')
+                write_data_item(fieldData, hdf5_field_data, hdf5_file.name)
 
         # Store the time
         if hdf5_data.attrs['time'].dtype == float:
@@ -126,6 +141,43 @@ def write_data_item(xdmf_parent, hdf5_item, hdf5_filename):
     dataItem.set('Precision', '8')
     dataItem.set('Format', 'HDF')
     dataItem.text = hdf5_filename + ":" + hdf5_item.name
+
+
+def write_data_hyper_slab_item(xdmf_parent, hdf5_item, hdf5_filename, offset):
+    hyperSlabDataItem = ET.SubElement(xdmf_parent, 'DataItem')
+
+    # create an effective size
+    effective_size = list(hdf5_item.shape)
+    effective_size[-1] = 1
+
+    hyperSlabDataItem.set('Dimensions', ' '.join(map(str, effective_size)))
+    hyperSlabDataItem.set('ItemType', 'HyperSlab')
+    hyperSlabDataItem.set('Type', 'HyperSlab')
+
+    # Specify the mapping
+    coord = []
+    # start
+    for s in range(len(hdf5_item.shape) - 1):
+        coord.append(0)
+    coord.append(offset)
+
+    # specify the stride
+    for s in range(len(hdf5_item.shape) - 1):
+        coord.append(1)
+    coord.append(hdf5_item.shape[-1])
+
+    # include the end
+    for s in range(len(hdf5_item.shape) - 1):
+        coord.append(hdf5_item.shape[s])
+    coord.append(1)
+
+    strideDataItem = ET.SubElement(hyperSlabDataItem, 'DataItem')
+    strideDataItem.set('Dimensions', f'{3} {len(hdf5_item.shape)}')
+    strideDataItem.set('Format', 'XML')
+    strideDataItem.text = ' '.join(map(str, coord))
+
+    # add the original data item
+    write_data_item(hyperSlabDataItem, hdf5_item, hdf5_filename)
 
 
 # store some dimensional information
