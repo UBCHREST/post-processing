@@ -17,7 +17,7 @@ dt=2500;
 dxpix=0.25
 sample_width=7.96;
 t0=-25000;%first timeshot
-i=200;
+i=1;
 while i<imax
     idx=0;
     currFileName = filename(i).name;
@@ -228,9 +228,6 @@ Tempcrop=zeros(length(xcrop),length(ycrop));
 Tempcrop=Tempcrop+298.15;
 fvcrop=zeros(length(xcrop),length(ycrop));
 
-% figure(7)
-% imshow(flameTemp(:,:,2)./(max(max(flameTemp(:,:,2)))))
-
 for i=1:size(flameTemp,1)
     for n=1:size(flameTemp,2)
         Tempcrop((i),n)=flameTemp(i,n,2);
@@ -238,9 +235,6 @@ for i=1:size(flameTemp,1)
     end
 end
 Tempcropplot=Tempcrop./(max(max(Tempcrop)));
-% figure(8)
-% imshow(Tempcropplot)
-
 
 xvect=0:dxpix:100-dxpix;
 yvect=0:dxpix:25.5-dxpix;
@@ -266,10 +260,6 @@ parfor i=1:length(xvect)
     end
 end
 Tempmatplot=Tempmat./(max(max(max(Tempmat))));
-% figure(9)
-% imshow(Tempmatplot(:,:,25))
-
-
 
 cd ..
 cd('fv')
@@ -305,17 +295,18 @@ dxm=[dx dy dz];
 file ="highspeed"+sprintf('%.5f',timeshot)
 file=strrep(file,'.','_');
 hdfname=append(file,'.h5');
-
+fvmatsingle=single(fvmat);
+Tempmatsingle=single(Tempmat);
 if isfile(hdfname)==false
-    h5create(hdfname,'/data/fields/fv',size(fvmat))
-    h5create(hdfname,'/data/fields/temperature',size(Tempmat))
+    h5create(hdfname,'/data/fields/fv',size(fvmatsingle),'Datatype','single','ChunkSize',size(fvmat),'Deflate',9)
+    h5create(hdfname,'/data/fields/temperature',size(Tempmatsingle),'Datatype','single','ChunkSize',size(Tempmat),'Deflate',9)
     h5create(hdfname,'/data/grid/start',[1 3])
     h5create(hdfname,'/data/grid/end',[1 3])
     h5create(hdfname,'/data/grid/discretization',[1 3])
 end
 
-h5write(hdfname,"/data/fields/fv",fvmat)
-h5write(hdfname,"/data/fields/temperature",Tempmat)
+h5write(hdfname,"/data/fields/fv",fvmatsingle)
+h5write(hdfname,"/data/fields/temperature",Tempmatsingle)
 h5write(hdfname,"/data/grid/start",startm)
 h5write(hdfname,"/data/grid/end",endm)
 h5write(hdfname,"/data/grid/discretization",dxm)
@@ -326,7 +317,7 @@ h5writeatt(hdfname,'/data/','exp date', 'Feb 13');
 
 cd ..
 cd('Images')
-
+disp('done')
 
 
 %%
@@ -339,22 +330,4 @@ maxfv = max(sootFrac(sootFrac < 1.15e-4));
 abcfv = sootFrac(sootFrac > 0 & sootFrac < 1.15e-4);
 meanfv = mean(abcfv);
 
-% cd ..
-% cd('Temperature22')
-% save(append(filename(1:end-4),"mat"),'flameTemp');
-% cd ..
-% cd('Images')
-%
-% cd ..
-% cd('fv22')
-% save(append(filename(1:end-4),"soot.mat"),'fv');
-% cd ..
-% cd('Images')
-
-% cd ..
-% cd('HeatFlux22')
-% save(append(filename(1:end-4),"mat"),'flameTemp');
-% save(append(filename(1:end-4),"soot.mat"),'fv');
-% cd ..
 end
-
