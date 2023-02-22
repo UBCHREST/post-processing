@@ -298,7 +298,8 @@ class ChrestData:
                 # save any fields
                 fields = data.create_group('fields')
                 for field in self.new_data:
-                    newField = fields.create_dataset(field, data=self.new_data[field][index])
+                    newField = fields.create_dataset(field, data=self.new_data[field][index], compression="gzip",
+                                                     dtype=np.float32)
                     if field in self.new_data_component_names:
                         newField.attrs.create('components', self.new_data_component_names[field])
 
@@ -376,5 +377,3 @@ if __name__ == "__main__":
 
         print(args.field + "_rms shape: ", rms_field.shape)
         print(args.field + "_rms times: ", times)
-
-
