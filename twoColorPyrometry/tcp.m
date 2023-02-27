@@ -172,20 +172,17 @@ pathlength = 7.96e-3;
 
 C0_red = 4.24;
 
-Ilambda = reshape(E(:,1), size(Temp));
+Ilambda = gpuArray(reshape(E(:,1), size(Temp)));
 
-sootFrac = zeros(size(Temp));
+sootFrac = gpuArray(zeros(size(Temp)));
 
-jstuff = 1:size(Temp,2);
-parfor i = 1:size(Temp,1)
-    for j = jstuff
-        if (Temp(i,j) > 400)
-            sootFrac(i,j) = (-lambdaR.*1e9./(C0_red.*pathlength))*log(1 - (Ilambda(i,j)*lambdaR^5*exp(c2/(lambdaR*Temp(i,j))))/c1);
+
+        if (Temp > 400)
+            sootFrac = (-lambdaR.*1e9./(C0_red.*pathlength))*log(1 - (Ilambda.*lambdaR^5*exp(c2/(lambdaR.*Temp)))/c1);
         else
-            sootFrac(i,j) = 0;
+            sootFrac = 0;
         end
-    end
-end
+
 % sootFrac(sootFrac > 300e-6) = mean(sootFrac(sootFrac < 200e-6));
 
 fv = zeros(size(flameTemp));

@@ -20,7 +20,7 @@ class vTCPData:
         vtcp = ablateData.AblateData(files)
         [data_tmp, times_tmp, names_tmp] = vtcp.get_field(fields[0])
         self.data = np.zeros((self.fieldSize, np.shape(data_tmp)[0], np.shape(data_tmp)[1]))
-        self.rgb = np.zeros((self.fieldSize, np.shape(data_tmp)[0], np.shape(data_tmp)[1]))
+        self.rgb = np.zeros((np.shape(data_tmp)[0], np.shape(data_tmp)[1], self.fieldSize))
         self.times = np.zeros(self.fieldSize)
         self.names = np.zeros(self.fieldSize)
         coords_tmp = vtcp.compute_cell_centers(3)
@@ -69,23 +69,24 @@ class vTCPData:
         else:
             self.start = 0  # Set the start time step to the first by default
 
-    def rgb_transform(self):
+    def rgb_transform(self, deltaT):
         self.prf = np.loadtxt("PRF_Color.csv", delimiter=',', skiprows=0)
 
-        for feildIndex in range(self.fieldSize):
+        for fieldIndex in range(self.fieldSize):
             for timeStep in range(np.shape(self.data)[1]):
                 for pointIndex in range(np.shape(self.data)[2]):
                     for brightnessIndex in range(len(self.prf)):
-                        brightnessTransformed = 5  # ln of whatever
-                        if (self.prf[brightnessIndex, feildIndex] > brightnessTransformed):
-                            brightness = brightnessIndex
+                        brightnessTransformed = 1  # np.log(self.data[fieldIndex, timeStep, pointIndex] * deltaT)
+                        if (self.prf[brightnessIndex, fieldIndex] > brightnessTransformed):
+                            if (fieldIndex == 0):
+                                brightness = brightnessIndex / 255
                             break
                     self.rgb[
-                        feildIndex, timeStep, pointIndex] = brightness  # assign the pixel brightness based on camera prf
+                        timeStep, pointIndex, fieldIndex] = brightness  # assign the pixel brightness based on camera prf
 
     def plot_rgb_step(self, n):
         frame = np.vstack(
-            (self.coords[0, :, 0], self.coords[0, :, 1], self.rgb[0, n, :], self.rgb[1, n, :], self.rgb[1, n, :]))
+            (self.coords[0, :, 0], self.coords[0, :, 1], self.rgb[n, :, 0], self.rgb[n, :, 1], self.rgb[n, :, 2]))
         frame = np.transpose(frame)
 
         d = pd.DataFrame(frame, columns=['x', 'y', 'r', 'g', 'b'])
@@ -96,7 +97,7 @@ class vTCPData:
         X, Y = np.meshgrid(X_unique, Y_unique)
         fig, ax = plt.subplots()
         ax.set_aspect('equal')
-        CS = ax.imshow(D, interpolation='bilinear',  # cmap="inferno",
+        CS = ax.imshow(self.rgb, interpolation='bilinear',  # cmap="inferno",
                        origin='lower',
                        extent=[frame[:, 0].min(), frame[:, 0].max(), frame[:, 1].min(), frame[:, 1].max()],
                        vmax=abs(D).max(), vmin=-abs(D).max())
@@ -123,13 +124,15 @@ if __name__ == "__main__":
                         help='Which index to start the data processing.')
     parser.add_argument('--end', dest='n_end', type=int,
                         help='Which index to finish the data processing.')
+    parser.add_argument('--exposure_time', dest='deltaT', type=float,
+                        help='Which index to finish the data processing.', required=True)
 
     args = parser.parse_args()
 
     vTCP = vTCPData(args.hdf5_file, args.fields)  # Initialize the virtual TCP creation.
 
     # vTCP.plot_step(5)
-    vTCP.rgb_transform()
+    vTCP.rgb_transform(args.deltaT)
     vTCP.plot_rgb_step(5)
 
     # Save mp4 out of all the frames stiched together.
