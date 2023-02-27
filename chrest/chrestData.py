@@ -359,7 +359,7 @@ if __name__ == "__main__":
                         help='If true, runs through access example', default=False)
     args = parser.parse_args()
 
-    # this is some example code for chest file post processing
+    # this is some example code for chest file post-processing
     chrest_data = ChrestData(args.hdf5_file)
 
     # compute the rms/mean
