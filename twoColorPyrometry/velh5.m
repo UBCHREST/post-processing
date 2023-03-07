@@ -29,8 +29,8 @@ for i=1:length(filename)
     uvel(sub2ind(size(uvel),icrow,iccol)) = M(:,3);
     
 %     uvel=fliplr(flipud(uvel'));
-        uvelplot=uvel./(max(max(uvel)))
-        imshow(uvelplot)
+        %uvelplot=uvel./(max(max(uvel)))
+        %imshow(uvelplot)
 
 
     vvel = zeros(numcol,numrow);
