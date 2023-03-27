@@ -77,9 +77,9 @@ class ChrestData:
             if ~ len(self.metadata):
                 for (key, value) in hdf5_data.attrs.items():
                     if isinstance(value, str):
-                        self.metadata[key] = np.string_(value).encode("utf-8")
+                        self.metadata[key] = value
                     elif h5py.check_string_dtype(value.dtype):
-                        self.metadata[key] = np.string_((value[0])).encode("utf-8")
+                        self.metadata[key] = value[0]
 
             # store the grid information, it is assumed to be the same for each file
             hdf5_grid = hdf5_data['grid']
@@ -286,7 +286,10 @@ class ChrestData:
                 data = hdf5.create_group('data')
                 # store the metadata
                 for key in self.metadata:
-                    data.attrs.create(key, self.metadata[key])
+                    try:
+                        data.attrs.create(key, self.metadata[key])
+                    except (Exception,) as e:
+                        print("Could not save metadata", e)
                 data.attrs.create('time', self.times[index])
 
                 # write the grid information
