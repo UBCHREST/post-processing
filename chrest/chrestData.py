@@ -77,7 +77,7 @@ class ChrestData:
             if ~ len(self.metadata):
                 for (key, value) in hdf5_data.attrs.items():
                     if isinstance(value, str):
-                        self.metadata[key] = value
+                        self.metadata[key] =  np.string_(value)
                     elif h5py.check_string_dtype(value.dtype):
                         self.metadata[key] = np.string_((value[0]))
 
