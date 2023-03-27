@@ -79,7 +79,7 @@ class ChrestData:
                     if isinstance(value, str):
                         self.metadata[key] = value
                     elif h5py.check_string_dtype(value.dtype):
-                        self.metadata[key] = value[0]
+                        self.metadata[key] = np.string_((value[0]))
 
             # store the grid information, it is assumed to be the same for each file
             hdf5_grid = hdf5_data['grid']
