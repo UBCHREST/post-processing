@@ -77,9 +77,9 @@ class ChrestData:
             if ~ len(self.metadata):
                 for (key, value) in hdf5_data.attrs.items():
                     if isinstance(value, str):
-                        self.metadata[key] =  np.string_(value)
+                        self.metadata[key] = np.string_(value).encode("utf-8")
                     elif h5py.check_string_dtype(value.dtype):
-                        self.metadata[key] = np.string_((value[0]))
+                        self.metadata[key] = np.string_((value[0])).encode("utf-8")
 
             # store the grid information, it is assumed to be the same for each file
             hdf5_grid = hdf5_data['grid']
