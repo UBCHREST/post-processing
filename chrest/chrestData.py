@@ -286,7 +286,10 @@ class ChrestData:
                 data = hdf5.create_group('data')
                 # store the metadata
                 for key in self.metadata:
-                    data.attrs.create(key, self.metadata[key])
+                    try:
+                        data.attrs.create(key, self.metadata[key])
+                    except (Exception,) as e:
+                        print("Could not save metadata", e)
                 data.attrs.create('time', self.times[index])
 
                 # write the grid information
