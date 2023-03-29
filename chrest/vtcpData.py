@@ -75,32 +75,44 @@ class vTCPData:
         for fieldIndex in range(self.fieldSize):
             for timeStep in range(np.shape(self.data)[1]):
                 for pointIndex in range(np.shape(self.data)[2]):
-                    for brightnessIndex in range(len(self.prf)):
-                        brightnessTransformed = 1  # np.log(self.data[fieldIndex, timeStep, pointIndex] * deltaT)
-                        if (self.prf[brightnessIndex, fieldIndex] > brightnessTransformed):
-                            if (fieldIndex == 0):
-                                brightness = brightnessIndex / 255
+                    brightness = 0
+                    brightnessTransformed = np.log(np.pi * self.data[fieldIndex, timeStep, pointIndex] * deltaT)
+                    brightnessTransformed += 9.85
+                    if (np.isinf(brightnessTransformed)):
+                        brightnessTransformed = 0
+                    for brightnessIndex in range(np.shape(self.prf)[0]):
+                        if self.prf[brightnessIndex, fieldIndex] > brightnessTransformed:
+                            brightness = brightnessIndex / 255
                             break
-                    self.rgb[
-                        timeStep, pointIndex, fieldIndex] = brightness  # assign the pixel brightness based on camera prf
+                    self.rgb[timeStep, pointIndex, fieldIndex] = brightness  # pixel brightness based on camera prf
 
     def plot_rgb_step(self, n):
-        frame = np.vstack(
-            (self.coords[0, :, 0], self.coords[0, :, 1], self.rgb[n, :, 0], self.rgb[n, :, 1], self.rgb[n, :, 2]))
-        frame = np.transpose(frame)
+        rframe = np.vstack(
+            (self.coords[0, :, 0], self.coords[0, :, 1], self.rgb[n, :, 0]))
+        rframe = np.transpose(rframe)
+        r = pd.DataFrame(rframe, columns=['x', 'y', 'r'])
+        R = r.pivot_table(index='x', columns='y', values=['r']).T.values
 
-        d = pd.DataFrame(frame, columns=['x', 'y', 'r', 'g', 'b'])
-        D = d.pivot_table(index='x', columns='y', values=['r', 'g', 'b']).T.values
+        gframe = np.vstack(
+            (self.coords[0, :, 0], self.coords[0, :, 1], self.rgb[n, :, 1]))
+        gframe = np.transpose(gframe)
+        g = pd.DataFrame(gframe, columns=['x', 'y', 'g'])
+        G = g.pivot_table(index='x', columns='y', values=['g']).T.values
 
-        X_unique = np.sort(d.x.unique())
-        Y_unique = np.sort(d.y.unique())
+        bframe = np.vstack(
+            (self.coords[0, :, 0], self.coords[0, :, 1], self.rgb[n, :, 2]))
+        bframe = np.transpose(bframe)
+        b = pd.DataFrame(bframe, columns=['x', 'y', 'b'])
+        B = b.pivot_table(index='x', columns='y', values=['b']).T.values
+
+        X_unique = np.sort(r.x.unique())
+        Y_unique = np.sort(r.y.unique())
         X, Y = np.meshgrid(X_unique, Y_unique)
         fig, ax = plt.subplots()
         ax.set_aspect('equal')
-        CS = ax.imshow(self.rgb, interpolation='bilinear',  # cmap="inferno",
-                       origin='lower',
-                       extent=[frame[:, 0].min(), frame[:, 0].max(), frame[:, 1].min(), frame[:, 1].max()],
-                       vmax=abs(D).max(), vmin=-abs(D).max())
+        CS = ax.imshow(np.rot90(np.array([R.data, G.data, B.data]).T, axes=(0, 1)), interpolation='bilinear',
+                       extent=[rframe[:, 0].min(), rframe[:, 0].max(), rframe[:, 1].min(), rframe[:, 1].max()],
+                       vmax=abs(R).max(), vmin=-abs(R).max())
         # ax.clabel(CS, inline=True, fontsize=10)
         ax.set_title('CHREST Format vTCP (n = ' + str(n) + ')')
         ax.set_xlabel("x [m]")
@@ -133,7 +145,8 @@ if __name__ == "__main__":
 
     # vTCP.plot_step(5)
     vTCP.rgb_transform(args.deltaT)
-    vTCP.plot_rgb_step(5)
-
-    # Save mp4 out of all the frames stiched together.
+    vTCP.plot_rgb_step(23)
+    # vTCP.plot_intensity_step(22, 0)
+    #
+    # Save mp4 out of all the frames stitched together.
     print('Done')
