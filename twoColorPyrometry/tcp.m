@@ -12,11 +12,11 @@ cd('Images')
 filename = dir('*.tiff')
 imax=length(filename);
 mmperpixel=9.64/42; %meas sample length per pixel amt
-imageperdraw=200; %set up the number of images per mask
+imageperdraw=10; %set up the number of images per mask
 dt=2500;
-dxpix=0.25
+dxpix=0.25;
 sample_width=7.96;
-t0=-25000;%first timeshot
+t0=-35644;%first timeshot
 i=1;
 while i<imax
     idx=0;
@@ -62,6 +62,10 @@ function []=dotcp(filename,image,vertexX,vertexY,BW,mmperpixel,dxpix,timeshot,sa
 %%
 dt = log(1/(2500*2));   %reference f/22 - Sid, This is the log of the exposure time while also accounting for aperture/ND filter. - Elektra
 image_red = image;%(:,:,1,:);
+
+Red_int=image(:,:,1);
+Green_int=image(:,:,2);
+
 
 img_interest = reshape(image_red, [size(image_red, 1)*size(image_red,2), size(image_red, 3)]);
 
@@ -227,13 +231,18 @@ ycrop=0:mmperpixel:((size(flameTemp,2)+200)*mmperpixel);
 Tempcrop=zeros(length(xcrop),length(ycrop));
 Tempcrop=Tempcrop+298.15;
 fvcrop=zeros(length(xcrop),length(ycrop));
+Redcrop=zeros(length(xcrop),length(ycrop));
+Greencrop=zeros(length(xcrop),length(ycrop));
 
 for i=1:size(flameTemp,1)
     for n=1:size(flameTemp,2)
         Tempcrop((i),n)=flameTemp(i,n,2);
         fvcrop((i),n)=fv(i,n,2);
+        Redcrop(i,n)=Red_int(n,i);
+        Greencrop(i,n)=Green_int(n,i);
     end
 end
+
 Tempcropplot=Tempcrop./(max(max(Tempcrop)));
 
 xvect=0:dxpix:100-dxpix;
@@ -242,24 +251,41 @@ zvect=0:dxpix:25.5-dxpix;
 
 Tempmat=zeros(length(xvect),length(yvect),length(zvect));
 fvmat=zeros(length(xvect),length(yvect),length(zvect));
+Redmat=zeros(length(xvect),length(yvect),length(zvect));
+Greenmat=zeros(length(xvect),length(yvect),length(zvect));
 zcent=12.75;
 
 nstuff=1:length(yvect);
 qstuff=1:length(zvect);
 parfor i=1:length(xvect)
     for n= nstuff
-
         Tinterp=interp2(xcrop,ycrop,Tempcrop',xvect(i),yvect(n));
         fvinterp=interp2(xcrop,ycrop,fvcrop',xvect(i),yvect(n));
+        Redinterp=interp2(xcrop,ycrop,Redcrop',xvect(i),yvect(n));
+        Greeninterp=interp2(xcrop,ycrop,Greencrop',xvect(i),yvect(n));
         for q=qstuff
             if (zvect(q)>(zcent-sample_width/2) && zvect(q)<(zcent+sample_width/2))
                     Tempmat(i,n,q)=Tinterp;
                     fvmat(i,n,q)=fvinterp;
+                    Redmat(i,n,q)=Redinterp;
+                    Greenmat(i,n,q)=Greeninterp;
             end
         end
     end
 end
-Tempmatplot=Tempmat./(max(max(max(Tempmat))));
+
+for i=1:length(zvect);
+    Redmat(:,:,i)=fliplr(Redmat(:,:,i));
+    Greenmat(:,:,i)=flipud(Greenmat(:,:,i));
+end
+
+
+% Tempmatplot=Tempmat./(max(max(max(Tempmat))));
+% Redmatplot=Redmat./(max(max(max(Redmat))));
+% figure(111)
+% imshow(Redmatplot(:,:,50))
+
+
 
 cd ..
 cd('fv')
@@ -297,9 +323,13 @@ file=strrep(file,'.','_');
 hdfname=append(file,'.h5');
 fvmatsingle=single(fvmat);
 Tempmatsingle=single(Tempmat);
+Redmatsingle=single(Redmat);
+Greenmatsingle=single(Greenmat);
 if isfile(hdfname)==false
     h5create(hdfname,'/data/fields/fv',size(fvmatsingle),'Datatype','single','ChunkSize',size(fvmat),'Deflate',9)
     h5create(hdfname,'/data/fields/temperature',size(Tempmatsingle),'Datatype','single','ChunkSize',size(Tempmat),'Deflate',9)
+    h5create(hdfname,'/data/fields/redint',size(Redmatsingle),'Datatype','single','ChunkSize',size(fvmat),'Deflate',9)
+    h5create(hdfname,'/data/fields/greenint',size(Greenmatsingle),'Datatype','single','ChunkSize',size(Tempmat),'Deflate',9)
     h5create(hdfname,'/data/grid/start',[1 3])
     h5create(hdfname,'/data/grid/end',[1 3])
     h5create(hdfname,'/data/grid/discretization',[1 3])
@@ -307,6 +337,8 @@ end
 
 h5write(hdfname,"/data/fields/fv",fvmatsingle)
 h5write(hdfname,"/data/fields/temperature",Tempmatsingle)
+h5write(hdfname,"/data/fields/redint",Redmatsingle)
+h5write(hdfname,"/data/fields/greenint",Greenmatsingle)
 h5write(hdfname,"/data/grid/start",startm)
 h5write(hdfname,"/data/grid/end",endm)
 h5write(hdfname,"/data/grid/discretization",dxm)
