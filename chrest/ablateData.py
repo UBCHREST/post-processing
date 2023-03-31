@@ -8,6 +8,7 @@ import h5py
 from chrestData import ChrestData
 from supportPaths import expand_path
 from scipy.spatial import KDTree
+from interpolTree import *
 
 
 class AblateData:
@@ -218,15 +219,20 @@ class AblateData:
         # now search and copy over data
         tree = KDTree(cell_centers)
         dist, points = tree.query(chrest_cell_centers)
+        dist1, points_ablate = tree.query(cell_centers)
 
         # march over each field
         for f in range(len(ablate_field_data)):
             # get in the correct order
-            ablate_field_in_chrest_order = ablate_field_data[f][:, points]
+            ablate_field_in_chrest_order = ablate_field_data[f][:, points_ablate]
 
             setToZero = np.where(dist > max_distance)
 
             ablate_field_in_chrest_order[:, setToZero] = 0.0
+
+            interpolTree = InterpolTree(cell_centers, ablate_field_in_chrest_order.reshape(
+                len(cell_centers), 2 * f + 1))
+            ablate_field_in_chrest_order = interpolTree(chrest_cell_centers, n_near=args.n_near)
 
             # reshape it back to k,j,i
             ablate_field_in_chrest_order = ablate_field_in_chrest_order.reshape(
@@ -274,8 +280,12 @@ if __name__ == "__main__":
                         )
 
     parser.add_argument('--max_distance', dest='max_distance', type=float,
-                        help="The max distance to search for a point in ablate", default=sys.float_info.max)
+                        help="The max distance to search for a point in ablate", default=sys.float_info.max
+                        )
 
+    parser.add_argument('--n_near', dest='n_near', type=int,
+                        help="number of neighbour cells for interpolation", default=1
+                        )
     args = parser.parse_args()
 
     # this is some example code for chest file post-processing
