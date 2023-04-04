@@ -86,7 +86,7 @@ class vTCPData:
                             break
                     self.rgb[timeStep, pointIndex, fieldIndex] = brightness  # pixel brightness based on camera prf
 
-    def plot_rgb_step(self, n):
+    def plot_rgb_step(self, n, name):
         rframe = np.vstack(
             (self.coords[0, :, 0], self.coords[0, :, 1], self.rgb[n, :, 0]))
         rframe = np.transpose(rframe)
@@ -117,7 +117,7 @@ class vTCPData:
         ax.set_title('CHREST Format vTCP (n = ' + str(n) + ')')
         ax.set_xlabel("x [m]")
         ax.set_ylabel("y [m]")
-        plt.savefig('vTCP_test', dpi=1000, bbox_inches='tight')
+        plt.savefig(str(name) + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inches='tight')
         plt.show()
 
 
@@ -145,7 +145,8 @@ if __name__ == "__main__":
 
     # vTCP.plot_step(5)
     vTCP.rgb_transform(args.deltaT)
-    vTCP.plot_rgb_step(23)
+    for i in range(len(vTCP.data[0, :, 0])):
+        vTCP.plot_rgb_step(i, "vTCP_RGB_first")
     # vTCP.plot_intensity_step(22, 0)
     #
     # Save mp4 out of all the frames stitched together.
