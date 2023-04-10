@@ -45,6 +45,8 @@ class vTCPData:
         # Finally, plot the temperature
         ratio = self.data[0, n, :] / self.data[1, n, :]
 
+        # TODO: Set the ratio of the intensities to back out the original temperature
+
         c = 3.e8  # Speed of light
         h = 6.626e-34  # Planck's constant
         k = 1.3806e-23  # Boltzmann Constant
@@ -57,15 +59,14 @@ class vTCPData:
         lambdaG = 532e-9
         tcp_temperature = np.zeros([len(ratio)], dtype=np.dtype(float))
         for i in range(len(ratio)):
-            if self.data[0, n, i] == 0 or self.data[1, n, i] == 0:
+            if self.data[0, n, i] < 1 or self.data[1, n, i] < 1:
                 tcp_temperature[i] = 0  # If either channel is zero, set the temperature to zero
             else:
                 tcp_temperature[i] = (c2 * ((1. / lambdaR) - (1. / lambdaG))) / (
-                        np.log(ratio[i]) + np.log((lambdaG / lambdaR) ** 6) + np.log(4.24 / 4.55))
-            if tcp_temperature[i] < 0:
-                tcp_temperature[i] = 0
+                        np.log(ratio[i]) + np.log((lambdaG / lambdaR) ** 5))  # + np.log(4.24 / 4.55))
+            if tcp_temperature[i] < 300:  # or tcp_temperature[i] > 3500:
+                tcp_temperature[i] = 300
         # 4.24 and 4.55 are empirical optical constants for refractive index for the red and green channels
-        # TODO: Why is float seen as NoneType??
 
         tcp_temperature_frame = np.vstack((self.coords[0, :, 0], self.coords[0, :, 1], tcp_temperature[:]))
         tcp_temperature_frame = np.transpose(tcp_temperature_frame)
@@ -83,13 +84,14 @@ class vTCPData:
                        origin='lower',
                        extent=[tcp_temperature_frame[:, 0].min(), tcp_temperature_frame[:, 0].max(),
                                tcp_temperature_frame[:, 1].min(), tcp_temperature_frame[:, 1].max()],
-                       vmax=abs(D).max(), vmin=-abs(D).max())
+                       vmax=abs(D).max(), vmin=300)
+        fig.colorbar(CS, shrink=0.5, pad=0.05)
         # ax.clabel(CS, inline=True, fontsize=10)
-        ax.set_title('CHREST Format vTCP (n = ' + str(n) + ')')
+        # ax.set_title('CHREST Format vTCP (n = ' + str(n) + ')')
         ax.set_xlabel("x [m]")
         ax.set_ylabel("y [m]")
         # ax.legend(r"Temperature $[K]$")  # Add label for the temperature
-        # plt.savefig(name, dpi=1000, bbox_inches='tight')
+        plt.savefig(str(name) + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inches='tight')
         plt.show()
 
     def set_limits(self):
@@ -192,9 +194,9 @@ if __name__ == "__main__":
 
     vTCP.rgb_transform(args.deltaT)
     # vTCP.plot_rgb_step(41, "vTCP_RGB_ignition")
-    # for i in range(len(vTCP.data[0, :, 0])):
-    #     vTCP.plot_rgb_step(i, "vTCP_RGB_ignition")
-    vTCP.plot_temperature_step(41, "vTCP_temperature_ignition")
+    for i in range(len(vTCP.data[0, :, 0])):
+        #     vTCP.plot_rgb_step(i, "vTCP_RGB_ignition")
+        vTCP.plot_temperature_step(i, "vTCP_temperature_ignition")
     #
     # Save mp4 out of all the frames stitched together.
     print('Done')
