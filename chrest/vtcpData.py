@@ -37,7 +37,7 @@ class vTCPData:
     # Get the size of a single mesh.
     # Iterate through the time steps
     # Iterate through each time step and place a point on the plot
-    def plot_temperature_step(self, n, f):
+    def plot_temperature_step(self, n, name):
 
         # Calculate the two-color-pyrometry temperature of the frame
         # First, get the intensity ratio between the red and green channels (0 and 1)
@@ -55,7 +55,7 @@ class vTCPData:
 
         lambdaR = 650e-9
         lambdaG = 532e-9
-        tcp_temperature = np.zeros([len(ratio)], dtype=float)
+        tcp_temperature = np.zeros([len(ratio)], dtype=np.dtype(float))
         for i in range(len(ratio)):
             if self.data[0, n, i] == 0 or self.data[1, n, i] == 0:
                 tcp_temperature[i] = 0  # If either channel is zero, set the temperature to zero
@@ -65,8 +65,9 @@ class vTCPData:
             if tcp_temperature[i] < 0:
                 tcp_temperature[i] = 0
         # 4.24 and 4.55 are empirical optical constants for refractive index for the red and green channels
+        # TODO: Why is float seen as NoneType??
 
-        tcp_temperature_frame = np.vstack((self.coords[f, :, 0], self.coords[f, :, 1], tcp_temperature))
+        tcp_temperature_frame = np.vstack((self.coords[0, :, 0], self.coords[0, :, 1], tcp_temperature[:]))
         tcp_temperature_frame = np.transpose(tcp_temperature_frame)
 
         d = pd.DataFrame(tcp_temperature_frame, columns=['x', 'y', 'd'])
@@ -88,7 +89,7 @@ class vTCPData:
         ax.set_xlabel("x [m]")
         ax.set_ylabel("y [m]")
         # ax.legend(r"Temperature $[K]$")  # Add label for the temperature
-        # plt.savefig('vTCP_test', dpi=1000, bbox_inches='tight')
+        # plt.savefig(name, dpi=1000, bbox_inches='tight')
         plt.show()
 
     def set_limits(self):
