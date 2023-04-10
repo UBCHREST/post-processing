@@ -10,6 +10,8 @@ from xdmfGenerator import XdmfGenerator
 from supportPaths import expand_path
 import ablateData
 
+plt.rcParams["font.family"] = "Noto Serif CJK JP"
+
 
 class vTCPData:
 
@@ -35,11 +37,39 @@ class vTCPData:
     # Get the size of a single mesh.
     # Iterate through the time steps
     # Iterate through each time step and place a point on the plot
-    def plot_intensity_step(self, n, f):
-        frame = np.vstack((self.coords[f, :, 0], self.coords[f, :, 1], self.data[f, n, :]))
-        frame = np.transpose(frame)
+    def plot_temperature_step(self, n, f):
 
-        d = pd.DataFrame(frame, columns=['x', 'y', 'd'])
+        # Calculate the two-color-pyrometry temperature of the frame
+        # First, get the intensity ratio between the red and green channels (0 and 1)
+        # Then, use the ratio to get the temperature
+        # Finally, plot the temperature
+        ratio = self.data[0, n, :] / self.data[1, n, :]
+
+        c = 3.e8  # Speed of light
+        h = 6.626e-34  # Planck's constant
+        k = 1.3806e-23  # Boltzmann Constant
+
+        # Planck's first and second constant
+        c1 = 2. * np.pi * h * c * c
+        c2 = h * c / k
+
+        lambdaR = 650e-9
+        lambdaG = 532e-9
+        tcp_temperature = np.zeros([len(ratio)], dtype=float)
+        for i in range(len(ratio)):
+            if self.data[0, n, i] == 0 or self.data[1, n, i] == 0:
+                tcp_temperature[i] = 0  # If either channel is zero, set the temperature to zero
+            else:
+                tcp_temperature[i] = (c2 * ((1. / lambdaR) - (1. / lambdaG))) / (
+                        np.log(ratio[i]) + np.log((lambdaG / lambdaR) ** 6) + np.log(4.24 / 4.55))
+            if tcp_temperature[i] < 0:
+                tcp_temperature[i] = 0
+        # 4.24 and 4.55 are empirical optical constants for refractive index for the red and green channels
+
+        tcp_temperature_frame = np.vstack((self.coords[f, :, 0], self.coords[f, :, 1], tcp_temperature))
+        tcp_temperature_frame = np.transpose(tcp_temperature_frame)
+
+        d = pd.DataFrame(tcp_temperature_frame, columns=['x', 'y', 'd'])
         D = d.pivot_table(index='x', columns='y', values='d').T.values
 
         X_unique = np.sort(d.x.unique())
@@ -48,15 +78,17 @@ class vTCPData:
 
         fig, ax = plt.subplots()
         ax.set_aspect('equal')
-        CS = ax.imshow(D, interpolation='bilinear', cmap="inferno",
+        CS = ax.imshow(D, interpolation='lanczos', cmap="inferno",
                        origin='lower',
-                       extent=[frame[:, 0].min(), frame[:, 0].max(), frame[:, 1].min(), frame[:, 1].max()],
+                       extent=[tcp_temperature_frame[:, 0].min(), tcp_temperature_frame[:, 0].max(),
+                               tcp_temperature_frame[:, 1].min(), tcp_temperature_frame[:, 1].max()],
                        vmax=abs(D).max(), vmin=-abs(D).max())
         # ax.clabel(CS, inline=True, fontsize=10)
         ax.set_title('CHREST Format vTCP (n = ' + str(n) + ')')
         ax.set_xlabel("x [m]")
         ax.set_ylabel("y [m]")
-        plt.savefig('vTCP_test', dpi=1000, bbox_inches='tight')
+        # ax.legend(r"Temperature $[K]$")  # Add label for the temperature
+        # plt.savefig('vTCP_test', dpi=1000, bbox_inches='tight')
         plt.show()
 
     def set_limits(self):
@@ -72,12 +104,26 @@ class vTCPData:
     def rgb_transform(self, deltaT):
         self.prf = np.loadtxt("PRF_Color.csv", delimiter=',', skiprows=0)
 
+        # Get the correct exposure for the camera by getting the maximum intensity for each channel and shifting to 255
+        exposureFraction = 1.0
+        brightnessMax = np.array([-100.0, -100.0, -100.0])
+        for fieldIndex in range(self.fieldSize):
+            for timeStep in range(np.shape(self.data)[1]):
+                for pointIndex in range(np.shape(self.data)[2]):
+                    brightnessTransformed = np.log(np.pi * self.data[fieldIndex, timeStep, pointIndex] * deltaT)
+                    if brightnessTransformed > brightnessMax[fieldIndex]:
+                        brightnessMax[fieldIndex] = brightnessTransformed
+        for fieldIndex in range(self.fieldSize):
+            prfRowMax = int(255.0 * exposureFraction)
+            shiftConstant = self.prf[prfRowMax, fieldIndex] - brightnessMax[fieldIndex]
+
         for fieldIndex in range(self.fieldSize):
             for timeStep in range(np.shape(self.data)[1]):
                 for pointIndex in range(np.shape(self.data)[2]):
                     brightness = 0
                     brightnessTransformed = np.log(np.pi * self.data[fieldIndex, timeStep, pointIndex] * deltaT)
-                    brightnessTransformed += 9.85
+                    brightnessTransformed += shiftConstant
+
                     if (np.isinf(brightnessTransformed)):
                         brightnessTransformed = 0
                     for brightnessIndex in range(np.shape(self.prf)[0]):
@@ -110,11 +156,11 @@ class vTCPData:
         X, Y = np.meshgrid(X_unique, Y_unique)
         fig, ax = plt.subplots()
         ax.set_aspect('equal')
-        CS = ax.imshow(np.rot90(np.array([R.data, G.data, B.data]).T, axes=(0, 1)), interpolation='bilinear',
+        CS = ax.imshow(np.rot90(np.array([R.data, G.data, B.data]).T, axes=(0, 1)), interpolation='lanczos',
                        extent=[rframe[:, 0].min(), rframe[:, 0].max(), rframe[:, 1].min(), rframe[:, 1].max()],
                        vmax=abs(R).max(), vmin=-abs(R).max())
         # ax.clabel(CS, inline=True, fontsize=10)
-        ax.set_title('CHREST Format vTCP (n = ' + str(n) + ')')
+        # ax.set_title('Simulated Camera (n = ' + str(n) + ')')
         ax.set_xlabel("x [m]")
         ax.set_ylabel("y [m]")
         plt.savefig(str(name) + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inches='tight')
@@ -143,11 +189,11 @@ if __name__ == "__main__":
 
     vTCP = vTCPData(args.hdf5_file, args.fields)  # Initialize the virtual TCP creation.
 
-    # vTCP.plot_step(5)
     vTCP.rgb_transform(args.deltaT)
-    for i in range(len(vTCP.data[0, :, 0])):
-        vTCP.plot_rgb_step(i, "vTCP_RGB_first")
-    # vTCP.plot_intensity_step(22, 0)
+    # vTCP.plot_rgb_step(41, "vTCP_RGB_ignition")
+    # for i in range(len(vTCP.data[0, :, 0])):
+    #     vTCP.plot_rgb_step(i, "vTCP_RGB_ignition")
+    vTCP.plot_temperature_step(41, "vTCP_temperature_ignition")
     #
     # Save mp4 out of all the frames stitched together.
     print('Done')
