@@ -6,6 +6,8 @@ import h5py
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt  # for plotting
 import pandas as pd
+
+from chrest.chrestData import ChrestData
 from xdmfGenerator import XdmfGenerator
 from supportPaths import expand_path
 import ablateData
@@ -25,6 +27,7 @@ class vTCPData:
         self.rgb = np.zeros((np.shape(data_tmp)[0], np.shape(data_tmp)[1], self.fieldSize))
         self.times = np.zeros(self.fieldSize)
         self.names = np.zeros(self.fieldSize)
+        self.tcp_temperature = None
         coords_tmp = vtcp.compute_cell_centers(3)
         self.coords = np.zeros((self.fieldSize, np.shape(coords_tmp)[0], np.shape(coords_tmp)[1]))
 
@@ -34,11 +37,8 @@ class vTCPData:
 
         self.set_limits()  # Sets the time step range of the processing
 
-    # Get the size of a single mesh.
-    # Iterate through the time steps
-    # Iterate through each time step and place a point on the plot
-    def plot_temperature_step(self, n, name):
 
+    def get_tcp_temperature(self, n):
         # Calculate the two-color-pyrometry temperature of the frame
         # First, get the intensity ratio between the red and green channels (0 and 1)
         # Then, use the ratio to get the temperature
@@ -67,8 +67,16 @@ class vTCPData:
             if tcp_temperature[i] < 300:  # or tcp_temperature[i] > 3500:
                 tcp_temperature[i] = 300
         # 4.24 and 4.55 are empirical optical constants for refractive index for the red and green channels
+        self.tcp_temperature[n] = tcp_temperature
 
-        tcp_temperature_frame = np.vstack((self.coords[0, :, 0], self.coords[0, :, 1], tcp_temperature[:]))
+    # Get the size of a single mesh.
+    # Iterate through the time steps
+    # Iterate through each time step and place a point on the plot
+    def plot_temperature_step(self, n, name):
+
+        self.get_tcp_temperature(n)  # Calculate the TCP temperature of the given boundary intenisties
+
+        tcp_temperature_frame = np.vstack((self.coords[0, :, 0], self.coords[0, :, 1], self.tcp_temperature[:]))
         tcp_temperature_frame = np.transpose(tcp_temperature_frame)
 
         d = pd.DataFrame(tcp_temperature_frame, columns=['x', 'y', 'd'])
@@ -170,6 +178,23 @@ class vTCPData:
         plt.show()
 
 
+def get_uncertainty_field(vtcp_data, chrest_data):
+
+    if vtcp_data.tcp_temperature is None:
+        try:  # Try getting all the tcp temperatures of the time steps
+            for i in range(len(vTCP.data[0, :, 0])):
+                vtcp_data.get_tcp_temperature(i)
+        except ValueError:
+            print("vTCP data has not written a TCP temperature field!")
+
+    # Now that we have the tcp temperature, we want to get the maximum temperatures in each of the ray lines.
+    uncertainty_field = []
+
+    return uncertainty_field
+
+def plot_uncertainty_field(uncertainty_field):
+    return None
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Generate plots from virtual TCP data. '
@@ -197,6 +222,20 @@ if __name__ == "__main__":
     for i in range(len(vTCP.data[0, :, 0])):
         #     vTCP.plot_rgb_step(i, "vTCP_RGB_ignition")
         vTCP.plot_temperature_step(i, "vTCP_temperature_ignition")
-    #
+
+    # Get the CHREST data associated with the simulation for the 3D stuff
+    files = []  # The files should be input here from the input arguments
+    data_3d = ChrestData(files)
+
+    # Calculate the difference between the DNS temperature and the tcp temperature
+    uncertainty_field = get_uncertainty_field(vTCP, data_3d)
+    plot_uncertainty_field(uncertainty_field)
+
+    # It would be worth correlating the uncertainty field to something non-dimensional
+    # Or at least related to the flame structure so that it can be generalized
+    # Maybe the mixture fraction is an appropriate value?
+
     # Save mp4 out of all the frames stitched together.
+
+
     print('Done')
