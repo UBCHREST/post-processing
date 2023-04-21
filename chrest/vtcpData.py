@@ -15,59 +15,61 @@ import ablateData
 plt.rcParams["font.family"] = "Noto Serif CJK JP"
 
 
-class vTCPData:
+class VTcpData:
 
     def __init__(self, files=None, fields=None):
-        self.fieldSize = len(fields)
+        self.prf = None
+        self.field_size = len(fields)
 
         # Initialize the
         vtcp = ablateData.AblateData(files)
         [data_tmp, times_tmp, names_tmp] = vtcp.get_field(fields[0])
-        self.data = np.zeros((self.fieldSize, np.shape(data_tmp)[0], np.shape(data_tmp)[1]))
-        self.rgb = np.zeros((np.shape(data_tmp)[0], np.shape(data_tmp)[1], self.fieldSize))
-        self.times = np.zeros(self.fieldSize)
-        self.names = np.zeros(self.fieldSize)
+        self.data = np.zeros((self.field_size, np.shape(data_tmp)[0], np.shape(data_tmp)[1]))
+        self.rgb = np.zeros((np.shape(data_tmp)[0], np.shape(data_tmp)[1], self.field_size))
+        self.times = np.zeros(self.field_size)
+        self.names = np.zeros(self.field_size)
         self.tcp_temperature = None
         coords_tmp = vtcp.compute_cell_centers(3)
-        self.coords = np.zeros((self.fieldSize, np.shape(coords_tmp)[0], np.shape(coords_tmp)[1]))
+        self.coords = np.zeros((self.field_size, np.shape(coords_tmp)[0], np.shape(coords_tmp)[1]))
 
-        for f in range(self.fieldSize):
+        for f in range(self.field_size):
             [self.data[f, :, :], self.times[f], self.names[f]] = vtcp.get_field(fields[f])
             self.coords[f, :, :] = vtcp.compute_cell_centers(3)
 
         self.set_limits()  # Sets the time step range of the processing
 
+    def get_tcp_temperature(self):
+        for n in range(len(self.data[0, :, 0])):
+            # Calculate the two-color-pyrometry temperature of the frame
+            # First, get the intensity ratio between the red and green channels (0 and 1)
+            # Then, use the ratio to get the temperature
+            # Finally, plot the temperature
+            ratio = self.data[0, n, :] / self.data[1, n, :]
 
-    def get_tcp_temperature(self, n):
-        # Calculate the two-color-pyrometry temperature of the frame
-        # First, get the intensity ratio between the red and green channels (0 and 1)
-        # Then, use the ratio to get the temperature
-        # Finally, plot the temperature
-        ratio = self.data[0, n, :] / self.data[1, n, :]
+            # TODO: Set the ratio of the intensities to back out the original temperature
 
-        # TODO: Set the ratio of the intensities to back out the original temperature
+            c = 3.e8  # Speed of light
+            h = 6.626e-34  # Planck's constant
+            k = 1.3806e-23  # Boltzmann Constant
 
-        c = 3.e8  # Speed of light
-        h = 6.626e-34  # Planck's constant
-        k = 1.3806e-23  # Boltzmann Constant
+            # Planck's first and second constant
+            c1 = 2. * np.pi * h * c * c
+            c2 = h * c / k
 
-        # Planck's first and second constant
-        c1 = 2. * np.pi * h * c * c
-        c2 = h * c / k
-
-        lambdaR = 650e-9
-        lambdaG = 532e-9
-        tcp_temperature = np.zeros([len(ratio)], dtype=np.dtype(float))
-        for i in range(len(ratio)):
-            if self.data[0, n, i] < 1 or self.data[1, n, i] < 1:
-                tcp_temperature[i] = 0  # If either channel is zero, set the temperature to zero
-            else:
-                tcp_temperature[i] = (c2 * ((1. / lambdaR) - (1. / lambdaG))) / (
-                        np.log(ratio[i]) + np.log((lambdaG / lambdaR) ** 5))  # + np.log(4.24 / 4.55))
-            if tcp_temperature[i] < 300:  # or tcp_temperature[i] > 3500:
-                tcp_temperature[i] = 300
-        # 4.24 and 4.55 are empirical optical constants for refractive index for the red and green channels
-        self.tcp_temperature[n] = tcp_temperature
+            lambdaR = 650e-9
+            lambdaG = 532e-9
+            tcp_temperature = np.zeros([len(ratio)], dtype=np.dtype(float))
+            for i in range(len(ratio)):
+                if self.data[0, n, i] < 1 or self.data[1, n, i] < 1:
+                    tcp_temperature[i] = 0  # If either channel is zero, set the temperature to zero
+                else:
+                    tcp_temperature[i] = (c2 * ((1. / lambdaR) - (1. / lambdaG))) / (
+                            np.log(ratio[i]) + np.log((lambdaG / lambdaR) ** 5))  # + np.log(4.24 / 4.55))
+                if tcp_temperature[i] < 300:  # or tcp_temperature[i] > 3500:
+                    tcp_temperature[i] = 300
+            # 4.24 and 4.55 are empirical optical constants for refractive index for the red and green channels
+            self.tcp_temperature[n].append(tcp_temperature)
+        return self.tcp_temperature
 
     # Get the size of a single mesh.
     # Iterate through the time steps
@@ -116,29 +118,29 @@ class vTCPData:
         self.prf = np.loadtxt("PRF_Color.csv", delimiter=',', skiprows=0)
 
         # Get the correct exposure for the camera by getting the maximum intensity for each channel and shifting to 255
-        exposureFraction = 1.0
-        brightnessMax = np.array([-100.0, -100.0, -100.0])
-        for fieldIndex in range(self.fieldSize):
+        exposure_fraction = 1.0
+        brightness_max = np.array([-100.0, -100.0, -100.0])
+        for fieldIndex in range(self.field_size):
             for timeStep in range(np.shape(self.data)[1]):
                 for pointIndex in range(np.shape(self.data)[2]):
-                    brightnessTransformed = np.log(np.pi * self.data[fieldIndex, timeStep, pointIndex] * deltaT)
-                    if brightnessTransformed > brightnessMax[fieldIndex]:
-                        brightnessMax[fieldIndex] = brightnessTransformed
-        for fieldIndex in range(self.fieldSize):
-            prfRowMax = int(255.0 * exposureFraction)
-            shiftConstant = self.prf[prfRowMax, fieldIndex] - brightnessMax[fieldIndex]
+                    brightness_transformed = np.log(np.pi * self.data[fieldIndex, timeStep, pointIndex] * deltaT)
+                    if brightness_transformed > brightness_max[fieldIndex]:
+                        brightness_max[fieldIndex] = brightness_transformed
+        for fieldIndex in range(self.field_size):
+            prf_row_max = int(255.0 * exposure_fraction)
+            shift_constant = self.prf[prf_row_max, fieldIndex] - brightness_max[fieldIndex]
 
-        for fieldIndex in range(self.fieldSize):
+        for fieldIndex in range(self.field_size):
             for timeStep in range(np.shape(self.data)[1]):
                 for pointIndex in range(np.shape(self.data)[2]):
                     brightness = 0
-                    brightnessTransformed = np.log(np.pi * self.data[fieldIndex, timeStep, pointIndex] * deltaT)
-                    brightnessTransformed += shiftConstant
+                    brightness_transformed = np.log(np.pi * self.data[fieldIndex, timeStep, pointIndex] * deltaT)
+                    brightness_transformed += shift_constant
 
-                    if (np.isinf(brightnessTransformed)):
-                        brightnessTransformed = 0
+                    if np.isinf(brightness_transformed):
+                        brightness_transformed = 0
                     for brightnessIndex in range(np.shape(self.prf)[0]):
-                        if self.prf[brightnessIndex, fieldIndex] > brightnessTransformed:
+                        if self.prf[brightnessIndex, fieldIndex] > brightness_transformed:
                             brightness = brightnessIndex / 255
                             break
                     self.rgb[timeStep, pointIndex, fieldIndex] = brightness  # pixel brightness based on camera prf
@@ -179,21 +181,24 @@ class vTCPData:
 
 
 def get_uncertainty_field(vtcp_data, chrest_data):
-
-    if vtcp_data.tcp_temperature is None:
-        try:  # Try getting all the tcp temperatures of the time steps
-            for i in range(len(vTCP.data[0, :, 0])):
-                vtcp_data.get_tcp_temperature(i)
-        except ValueError:
-            print("vTCP data has not written a TCP temperature field!")
+    # Get the TCP temperature from the boundary information
+    tcp_temperature = vtcp_data.get_tcp_temperature(i)
 
     # Now that we have the tcp temperature, we want to get the maximum temperatures in each of the ray lines.
-    uncertainty_field = []
+    dns_temperature, _, _ = chrest_data.get_field("temperature")
+
+    # Iterate along the ray direction for each cell in the plane of the boundary
+    # Need boundary information to do this
+
+    # Get the difference between the DNS temperature and the TCP temperature
+    uncertainty_field = dns_temperature - vtcp_data.tcp_temperature
 
     return uncertainty_field
 
+
 def plot_uncertainty_field(uncertainty_field):
     return None
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -215,7 +220,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    vTCP = vTCPData(args.hdf5_file, args.fields)  # Initialize the virtual TCP creation.
+    vTCP = VTcpData(args.hdf5_file, args.fields)  # Initialize the virtual TCP creation.
 
     vTCP.rgb_transform(args.deltaT)
     # vTCP.plot_rgb_step(41, "vTCP_RGB_ignition")
@@ -224,18 +229,17 @@ if __name__ == "__main__":
         vTCP.plot_temperature_step(i, "vTCP_temperature_ignition")
 
     # Get the CHREST data associated with the simulation for the 3D stuff
-    files = []  # The files should be input here from the input arguments
-    data_3d = ChrestData(files)
+    file = []  # The files should be input here from the input arguments
+    data_3d = ChrestData(file)
 
     # Calculate the difference between the DNS temperature and the tcp temperature
-    uncertainty_field = get_uncertainty_field(vTCP, data_3d)
-    plot_uncertainty_field(uncertainty_field)
+    temp_uncert_field = get_uncertainty_field(vTCP, data_3d)
+    plot_uncertainty_field(temp_uncert_field)
 
     # It would be worth correlating the uncertainty field to something non-dimensional
     # Or at least related to the flame structure so that it can be generalized
     # Maybe the mixture fraction is an appropriate value?
 
     # Save mp4 out of all the frames stitched together.
-
 
     print('Done')
