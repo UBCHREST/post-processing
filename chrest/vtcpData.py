@@ -50,32 +50,34 @@ class VTcpData:
             h = 6.626e-34  # Planck's constant
             k = 1.3806e-23  # Boltzmann Constant
 
-            # Planck's first and second constant
-            c1 = 2. * np.pi * h * c * c
-            c2 = h * c / k
+        # Planck's first and second constant
+        c1 = 2. * np.pi * h * c * c
+        c2 = h * c / k
 
-            lambdaR = 650e-9
-            lambdaG = 532e-9
-            tcp_temperature = np.zeros([len(ratio)], dtype=np.dtype(float))
-            for i in range(len(ratio)):
-                if self.data[0, n, i] < 1 or self.data[1, n, i] < 1:
-                    tcp_temperature[i] = 0  # If either channel is zero, set the temperature to zero
-                else:
-                    tcp_temperature[i] = (c2 * ((1. / lambdaR) - (1. / lambdaG))) / (
-                            np.log(ratio[i]) + np.log((lambdaG / lambdaR) ** 5))  # + np.log(4.24 / 4.55))
-                if tcp_temperature[i] < 300:  # or tcp_temperature[i] > 3500:
-                    tcp_temperature[i] = 300
-            # 4.24 and 4.55 are empirical optical constants for refractive index for the red and green channels
-            self.tcp_temperature[n].append(tcp_temperature)
-        return self.tcp_temperature
+        lambdaR = 650e-9
+        lambdaG = 532e-9
+        tcp_temperature = np.zeros([len(ratio)], dtype=np.dtype(float))
+        
+        threshold_fraction = 0.05  # Threshold for the absolute intensity (keep at 0.15?)
+        
+        for i in range(len(ratio)):
+            if self.data[0, n, i] < threshold_fraction * np.max(self.data[0, n, :]) or self.data[1, n, i] < threshold_fraction * np.max(self.data[1, n, :]):
+                tcp_temperature[i] = 0  # If either channel is zero, set the temperature to zero
+            else:
+                tcp_temperature[i] = (c2 * ((1. / lambdaR) - (1. / lambdaG))) / (
+                        np.log(ratio[i]) + np.log((lambdaG / lambdaR) ** 5))  # + np.log(4.24 / 4.55))
+            if tcp_temperature[i] < 300:  # or tcp_temperature[i] > 3500:
+                tcp_temperature[i] = 300
+        # 4.24 and 4.55 are empirical optical constants for refractive index for the red and green channels
+                self.tcp_temperature[n].append(tcp_temperature)
+        # return self.tcp_temperature
 
-    # Get the size of a single mesh.
-    # Iterate through the time steps
-    # Iterate through each time step and place a point on the plot
+        # Get the size of a single mesh.
+        # Iterate through the time steps
+        # Iterate through each time step and place a point on the plot
     def plot_temperature_step(self, n, name):
-
-        self.get_tcp_temperature(n)  # Calculate the TCP temperature of the given boundary intenisties
-
+        # self.get_tcp_temperature()  # Calculate the TCP temperature of the given boundary intenisties
+        # TODO: Fix the indexing for getting the TCP temperature
         tcp_temperature_frame = np.vstack((self.coords[0, :, 0], self.coords[0, :, 1], self.tcp_temperature[:]))
         tcp_temperature_frame = np.transpose(tcp_temperature_frame)
 
@@ -88,11 +90,11 @@ class VTcpData:
 
         fig, ax = plt.subplots()
         ax.set_aspect('equal')
-        CS = ax.imshow(D, interpolation='lanczos', cmap="inferno",
+        CS = ax.imshow(D, interpolation='none', cmap="inferno",
                        origin='lower',
                        extent=[tcp_temperature_frame[:, 0].min(), tcp_temperature_frame[:, 0].max(),
                                tcp_temperature_frame[:, 1].min(), tcp_temperature_frame[:, 1].max()],
-                       vmax=abs(D).max(), vmin=300)
+                       vmax=4500, vmin=300)
         fig.colorbar(CS, shrink=0.5, pad=0.05)
         # ax.clabel(CS, inline=True, fontsize=10)
         # ax.set_title('CHREST Format vTCP (n = ' + str(n) + ')')
@@ -101,6 +103,11 @@ class VTcpData:
         # ax.legend(r"Temperature $[K]$")  # Add label for the temperature
         plt.savefig(str(name) + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inches='tight')
         plt.show()
+
+        # tcp_temperature_filtered = tcp_temperature[tcp_temperature < 3500]
+        # tcp_temperature_filtered = tcp_temperature_filtered[300 < tcp_temperature_filtered]
+        # print(np.mean(tcp_temperature_filtered))
+
 
     def set_limits(self):
         if args.n_end:
@@ -111,6 +118,7 @@ class VTcpData:
             self.start = args.n_start
         else:
             self.start = 0  # Set the start time step to the first by default
+
 
     def rgb_transform(self, deltaT):
         self.prf = np.loadtxt("PRF_Color.csv", delimiter=',', skiprows=0)
@@ -142,6 +150,7 @@ class VTcpData:
                             brightness = brightnessIndex / 255
                             break
                     self.rgb[timeStep, pointIndex, fieldIndex] = brightness  # pixel brightness based on camera prf
+
 
     def plot_rgb_step(self, n, name):
         rframe = np.vstack(
@@ -215,16 +224,20 @@ if __name__ == "__main__":
                         help='Which index to finish the data processing.')
     parser.add_argument('--exposure_time', dest='deltaT', type=float,
                         help='Which index to finish the data processing.', required=True)
+    parser.add_argument('--name', dest='name', type=str,
+                        help='Which index to finish the data processing.', required=True)
 
     args = parser.parse_args()
 
     vTCP = VTcpData(args.hdf5_file, args.fields)  # Initialize the virtual TCP creation.
 
-    vTCP.rgb_transform(args.deltaT)
+    # vTCP.rgb_transform(args.deltaT)
     # vTCP.plot_rgb_step(41, "vTCP_RGB_ignition")
+    print(len(vTCP.data[0, :, 0]))
+
     for i in range(len(vTCP.data[0, :, 0])):
         #     vTCP.plot_rgb_step(i, "vTCP_RGB_ignition")
-        vTCP.plot_temperature_step(i, "vTCP_temperature_ignition")
+        vTCP.plot_temperature_step(i, args.name)
 
     # Get the CHREST data associated with the simulation for the 3D stuff
     file = []  # The files should be input here from the input arguments
@@ -236,8 +249,6 @@ if __name__ == "__main__":
 
     # It would be worth correlating the uncertainty field to something non-dimensional
     # Or at least related to the flame structure so that it can be generalized
-    # Maybe the mixture fraction is an appropriate value?
-
-    # Save mp4 out of all the frames stitched together.
+    # Maybe the mixture fraction is an appropriate value?    # Save mp4 out of all the frames stitched together.
 
     print('Done')
