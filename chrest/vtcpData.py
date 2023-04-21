@@ -46,8 +46,6 @@ class VTcpData:
             # Finally, plot the temperature
             ratio = self.data[0, n, :] / self.data[1, n, :]
 
-            # TODO: Set the ratio of the intensities to back out the original temperature
-
             c = 3.e8  # Speed of light
             h = 6.626e-34  # Planck's constant
             k = 1.3806e-23  # Boltzmann Constant
