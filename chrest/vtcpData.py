@@ -44,7 +44,7 @@ class VTcpData:
             # First, get the intensity ratio between the red and green channels (0 and 1)
             # Then, use the ratio to get the temperature
             # Finally, plot the temperature
-            ratio = self.data[0, n, :] / self.data[1, n, :]
+            ratio = self.data[1, n, :] / self.data[0, n, :]
 
             c = 3.e8  # Speed of light
             h = 6.626e-34  # Planck's constant
