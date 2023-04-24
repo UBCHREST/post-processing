@@ -65,6 +65,8 @@ class VTcpData:
                 if self.data[0, n, i] < threshold_fraction * np.max(self.data[0, n, :]) \
                         or self.data[1, n, i] < threshold_fraction * np.max(self.data[1, n, :]):
                     self.tcp_temperature[n, i] = 0  # If either channel is zero, set the temperature to zero
+                if ratio[n, i] == 0:
+                    self.tcp_temperature[n, i] = 0
                 else:
                     self.tcp_temperature[n, i] = (c2 * ((1. / lambdaR) - (1. / lambdaG))) / (
                             np.log(ratio[n, i]) + np.log((lambdaG / lambdaR) ** 5))  # + np.log(4.24 / 4.55))
