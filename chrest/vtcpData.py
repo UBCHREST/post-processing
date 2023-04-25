@@ -190,41 +190,61 @@ class VTcpData:
         plt.savefig(str(name) + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inches='tight')
         plt.show()
 
-    def get_uncertainty_field(self, ablate_data):
+    def get_uncertainty_field(self, n, ablate_data):
+        if self.tcp_temperature is None:
+            self.get_tcp_temperature()  # Calculate the TCP temperature of the given boundary intensities
         # Get the TCP temperature from the boundary information
         tcp_temperature = self.tcp_temperature
 
         # Now that we have the tcp temperature, we want to get the maximum temperatures in each of the ray lines.
         dns_temperature, _, _ = ablate_data.get_field("aux_temperature")
 
-        # Iterate along the ray direction for each cell in the plane of the boundary
-        # Need boundary information to do this
-        max_temperature = np.zeros_like(dns_temperature)
+        dns_coords = ablate_data.compute_cell_centers(3)
 
-        # We should be able to figure out which direction to travel along using the tcp information
-        for dim in tcp_temperature.shape:
-            if tcp_temperature.shape[dim] == 1:
-                ray_direction = dim
-                break
+        # Create a DataFrame with the coordinates and the temperature (just to use pandas group function)
+        dns_temperature_frame = np.vstack((dns_coords[:, 0], dns_coords[:, 1], dns_coords[:, 2], dns_temperature[n, :]))
+        dns_temperature_frame = np.transpose(dns_temperature_frame)
 
-        # Get the shape of the outer loop to iterate through the pixels. These are the dimensions orthogonal to ray dir.
-        # Everything not including ray direction
-        outer_loop_shape = tcp_temperature.shape[:ray_direction] + tcp_temperature.shape[ray_direction + 1:]
+        d = pd.DataFrame(dns_temperature_frame, columns=['x', 'y', 'z', 'd'])
+        # Group by x and y values, then find the maximum d value for each group
+        d_max = d.groupby(['x', 'y'])['d'].max().reset_index()
 
-        # We want our outer loops to iterate through the dimensions that are not the ray direction
-        for x in range(tcp_temperature.shape[0]):
-            for y in range(tcp_temperature.shape[1]):
-                for z in range(tcp_temperature.shape[2]):
-                    max_temperature[x, y] = np.max(dns_temperature[:, :, ray_direction])
+        # Create a DataFrame for tcp_temperature
+        tcp_temperature_frame = np.vstack((self.coords[0, :, 0], self.coords[0, :, 1], self.tcp_temperature[n, :]))
+        tcp_temperature_frame = np.transpose(tcp_temperature_frame)
+        tcp_temperature_df = pd.DataFrame(tcp_temperature_frame, columns=['x', 'y', 'd'])
 
-        # Get the difference between the DNS temperature and the TCP temperature
-        # Calculate the difference between the maximum DNS temperature and the TCP temperature
-        uncertainty_field = np.abs(max_temperature - tcp_temperature)
+        # Merge tcp_temperature_df with d_max on 'x' and 'y' coordinates
+        merged_df = d_max[['x', 'y']].merge(tcp_temperature_df, on=['x', 'y'], how='inner')
 
-        return uncertainty_field
+        # Fill NaN values with zeros
+        merged_df.fillna(0, inplace=True)
 
-    def plot_uncertainty_field(self, uncertainty_field):
-        return None
+        # Calculate the uncertainty_field
+        tcp_temperature_df['d'] = tcp_temperature_df['d'].apply(lambda x: x * -1)  # Multiply for subtraction
+        uncertainty_df = merged_df.groupby(['x', 'y'])['d'].sum().reset_index()  # Subtract the tcp and dns temperatures
+        uncertainty_df['d'] = uncertainty_df['d'].apply(lambda x: abs(x))  # Take absolute value for error field
+
+        return uncertainty_df, d_max
+
+    def plot_uncertainty_field(self, uncertainty_df, dns_temperature_df):
+        D = uncertainty_df.pivot_table(index='x', columns='y', values='d').T.values
+
+        X_unique = np.sort(uncertainty_df.x.unique())
+        Y_unique = np.sort(uncertainty_df.y.unique())
+        X, Y = np.meshgrid(X_unique, Y_unique)
+
+        fig, ax = plt.subplots()
+        ax.set_aspect('equal')
+        CS = ax.imshow(D, interpolation='none', cmap="inferno",
+                       origin='lower',
+                       extent=[uncertainty_df['x'].min(), uncertainty_df['x'].max(),
+                               uncertainty_df['y'].min(), uncertainty_df['y'].max()],
+                       vmax=2000, vmin=0)
+        fig.colorbar(CS, shrink=0.5, pad=0.05, label="Error [K]")
+        ax.set_xlabel("x [m]")
+        ax.set_ylabel("y [m]")
+        plt.show()
 
 
 if __name__ == "__main__":
@@ -261,14 +281,17 @@ if __name__ == "__main__":
 
     # for i in range(np.shape(vTCP.data)[1]):
     #     vTCP.plot_rgb_step(i, "vTCP_RGB_ignition")
-    # vTCP.plot_temperature_step(50, args.name)
+    vTCP.plot_temperature_step(50, args.name)
 
     # Get the CHREST data associated with the simulation for the 3D stuff
     data_3d = ablateData.AblateData(args.dns)
 
     # Calculate the difference between the DNS temperature and the tcp temperature
-    temp_uncert_field = vTCP.get_uncertainty_field(data_3d)
-    vTCP.plot_uncertainty_field(temp_uncert_field)
+    for i in range(np.shape(vTCP.data)[1]):
+        temp_uncert_field, dns_temp_field = vTCP.get_uncertainty_field(i, data_3d)
+        vTCP.plot_uncertainty_field(temp_uncert_field)
+        vTCP.plot_uncertainty_field(dns_temp_field)
+
 
     # It would be worth correlating the uncertainty field to something non-dimensional
     # Or at least related to the flame structure so that it can be generalized
