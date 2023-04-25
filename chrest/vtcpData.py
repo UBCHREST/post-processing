@@ -6,6 +6,7 @@ import h5py
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt  # for plotting
 import pandas as pd
+import matplotlib.gridspec as gridspec
 
 from chrest.chrestData import ChrestData
 from xdmfGenerator import XdmfGenerator
@@ -214,6 +215,7 @@ class VTcpData:
         tcp_temperature_frame = np.transpose(tcp_temperature_frame)
         tcp_temperature_df = pd.DataFrame(tcp_temperature_frame, columns=['x', 'y', 'd'])
 
+        tcp_temperature_df['d'] = tcp_temperature_df['d'].apply(lambda x: x * -1)  # Multiply for subtraction
         # Merge tcp_temperature_df with d_max on 'x' and 'y' coordinates
         merged_df = d_max[['x', 'y']].merge(tcp_temperature_df, on=['x', 'y'], how='inner')
 
@@ -221,29 +223,60 @@ class VTcpData:
         merged_df.fillna(0, inplace=True)
 
         # Calculate the uncertainty_field
-        tcp_temperature_df['d'] = tcp_temperature_df['d'].apply(lambda x: x * -1)  # Multiply for subtraction
         uncertainty_df = merged_df.groupby(['x', 'y'])['d'].sum().reset_index()  # Subtract the tcp and dns temperatures
         uncertainty_df['d'] = uncertainty_df['d'].apply(lambda x: abs(x))  # Take absolute value for error field
+        tcp_temperature_df['d'] = tcp_temperature_df['d'].apply(lambda x: x * -1)  # Multiply for recovery
 
-        return uncertainty_df, d_max
+        return uncertainty_df, d_max, tcp_temperature_df
 
-    def plot_uncertainty_field(self, uncertainty_df, dns_temperature_df):
-        D = uncertainty_df.pivot_table(index='x', columns='y', values='d').T.values
+    import matplotlib.gridspec as gridspec
 
-        X_unique = np.sort(uncertainty_df.x.unique())
-        Y_unique = np.sort(uncertainty_df.y.unique())
-        X, Y = np.meshgrid(X_unique, Y_unique)
+    def plot_uncertainty_field(self, n, uncertainty_df, dns_temperature_df, tcp_temperature_frame):
+        fig = plt.figure(figsize=(8, 7))
+        gs = gridspec.GridSpec(3, 2, width_ratios=[20, 1], height_ratios=[1, 1, 1])
 
-        fig, ax = plt.subplots()
-        ax.set_aspect('equal')
-        CS = ax.imshow(D, interpolation='none', cmap="inferno",
-                       origin='lower',
-                       extent=[uncertainty_df['x'].min(), uncertainty_df['x'].max(),
-                               uncertainty_df['y'].min(), uncertainty_df['y'].max()],
-                       vmax=2000, vmin=0)
-        fig.colorbar(CS, shrink=0.5, pad=0.05, label="Error [K]")
-        ax.set_xlabel("x [m]")
-        ax.set_ylabel("y [m]")
+        # Plot dns_temperature
+        ax1 = fig.add_subplot(gs[0, 0])
+        dns_temperature = dns_temperature_df.pivot_table(index='x', columns='y', values='d').T.values
+        im1 = ax1.imshow(dns_temperature, interpolation='none', cmap="inferno",
+                         origin='lower',
+                         extent=[uncertainty_df['x'].min(), uncertainty_df['x'].max(),
+                                 uncertainty_df['y'].min(), uncertainty_df['y'].max()],
+                         vmax=3200, vmin=300)
+        ax1.set_title("DNS Temperature")
+        ax1.set_ylabel("y [m]")
+
+        # Plot tcp_temperature
+        ax2 = fig.add_subplot(gs[1, 0])
+        tcp_temperature = tcp_temperature_frame.pivot_table(index='x', columns='y', values='d').T.values
+        im2 = ax2.imshow(tcp_temperature, interpolation='none', cmap="inferno",
+                         origin='lower',
+                         extent=[uncertainty_df['x'].min(), uncertainty_df['x'].max(),
+                                 uncertainty_df['y'].min(), uncertainty_df['y'].max()],
+                         vmax=3200, vmin=300)
+        ax2.set_title("TCP Temperature")
+        ax2.set_ylabel("y [m]")
+
+        # Plot uncertainty
+        ax3 = fig.add_subplot(gs[2, 0])
+        uncertainty = uncertainty_df.pivot_table(index='x', columns='y', values='d').T.values
+        im3 = ax3.imshow(uncertainty, interpolation='none', cmap="inferno",
+                         origin='lower',
+                         extent=[uncertainty_df['x'].min(), uncertainty_df['x'].max(),
+                                 uncertainty_df['y'].min(), uncertainty_df['y'].max()],
+                         vmax=3200, vmin=300)
+        ax3.set_title("Error Field")
+        ax3.set_xlabel("x [m]")
+        ax3.set_ylabel("y [m]")
+
+        # Add colorbar
+        cbar_ax = fig.add_subplot(gs[:, 1])
+        cbar = fig.colorbar(im3, cax=cbar_ax, orientation='vertical', label="Temperature [K]")
+        cbar_ax.yaxis.set_ticks_position('right')
+        cbar_ax.yaxis.set_label_position('right')
+
+        plt.tight_layout()
+        plt.savefig(str("thing") + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inches='tight')
         plt.show()
 
 
@@ -288,9 +321,8 @@ if __name__ == "__main__":
 
     # Calculate the difference between the DNS temperature and the tcp temperature
     for i in range(np.shape(vTCP.data)[1]):
-        temp_uncert_field, dns_temp_field = vTCP.get_uncertainty_field(i, data_3d)
-        vTCP.plot_uncertainty_field(temp_uncert_field)
-        vTCP.plot_uncertainty_field(dns_temp_field)
+        uncert_temp_frame, dns_temp_frame, tcp_temp_frame = vTCP.get_uncertainty_field(i, data_3d)
+        vTCP.plot_uncertainty_field(i, uncert_temp_frame, dns_temp_frame, tcp_temp_frame)
 
 
     # It would be worth correlating the uncertainty field to something non-dimensional
