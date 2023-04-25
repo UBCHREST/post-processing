@@ -190,43 +190,41 @@ class VTcpData:
         plt.savefig(str(name) + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inches='tight')
         plt.show()
 
+    def get_uncertainty_field(self, ablate_data):
+        # Get the TCP temperature from the boundary information
+        tcp_temperature = self.tcp_temperature
 
-# def get_uncertainty_field(vtcp_data, chrest_data):
-#     # Get the TCP temperature from the boundary information
-#     tcp_temperature = vtcp_data.get_tcp_temperature()
-#
-#     # Now that we have the tcp temperature, we want to get the maximum temperatures in each of the ray lines.
-#     dns_temperature, _, _ = chrest_data.get_field("temperature")
-#
-#     # Iterate along the ray direction for each cell in the plane of the boundary
-#     # Need boundary information to do this
-#     max_temperature = np.zeros_like(dns_temperature)
-#
-#     # We should be able to figure out which direction to travel along using the tcp information
-#     for dim in tcp_temperature.shape:
-#         if tcp_temperature.shape[dim] == 1:
-#             ray_direction = dim
-#             break
-#
-#     # Get the shape of the outer loop to iterate through the pixels. These are the dimensions orthogonal to ray dir.
-#     # Everything not including ray direction
-#     outer_loop_shape = tcp_temperature.shape[:ray_direction] + tcp_temperature.shape[ray_direction + 1:]
-#
-#     # We want our outer loops to iterate through the dimensions that are not the ray direction
-#     for x in range(tcp_temperature.shape[0]):
-#         for y in range(tcp_temperature.shape[1]):
-#             for z in range(tcp_temperature.shape[2]):
-#                 max_temperature[firstIndex, secondIndex] = np.max(dns_temperature[:, :, ray_direction])
-#
-#     # Get the difference between the DNS temperature and the TCP temperature
-#     # Calculate the difference between the maximum DNS temperature and the TCP temperature
-#     uncertainty_field = np.abs(max_temperature - tcp_temperature)
-#
-#     return uncertainty_field
+        # Now that we have the tcp temperature, we want to get the maximum temperatures in each of the ray lines.
+        dns_temperature, _, _ = ablate_data.get_field("aux_temperature")
 
+        # Iterate along the ray direction for each cell in the plane of the boundary
+        # Need boundary information to do this
+        max_temperature = np.zeros_like(dns_temperature)
 
-def plot_uncertainty_field(uncertainty_field):
-    return None
+        # We should be able to figure out which direction to travel along using the tcp information
+        for dim in tcp_temperature.shape:
+            if tcp_temperature.shape[dim] == 1:
+                ray_direction = dim
+                break
+
+        # Get the shape of the outer loop to iterate through the pixels. These are the dimensions orthogonal to ray dir.
+        # Everything not including ray direction
+        outer_loop_shape = tcp_temperature.shape[:ray_direction] + tcp_temperature.shape[ray_direction + 1:]
+
+        # We want our outer loops to iterate through the dimensions that are not the ray direction
+        for x in range(tcp_temperature.shape[0]):
+            for y in range(tcp_temperature.shape[1]):
+                for z in range(tcp_temperature.shape[2]):
+                    max_temperature[x, y] = np.max(dns_temperature[:, :, ray_direction])
+
+        # Get the difference between the DNS temperature and the TCP temperature
+        # Calculate the difference between the maximum DNS temperature and the TCP temperature
+        uncertainty_field = np.abs(max_temperature - tcp_temperature)
+
+        return uncertainty_field
+
+    def plot_uncertainty_field(self, uncertainty_field):
+        return None
 
 
 if __name__ == "__main__":
@@ -245,11 +243,15 @@ if __name__ == "__main__":
     parser.add_argument('--end', dest='n_end', type=int,
                         help='Which index to finish the data processing.')
     parser.add_argument('--exposure_time', dest='deltaT', type=float,
-                        help='Which index to finish the data processing.', required=True)
+                        help='Impacts the saturation of the virtual camera.', required=False)
     parser.add_argument('--name', dest='name', type=str,
-                        help='Which index to finish the data processing.', required=True)
+                        help='What to call the outputs.', required=True)
+    parser.add_argument('--dns', dest='dns', type=pathlib.Path,
+                        help='Path to the volumetric DNS data.', required=True)
 
     args = parser.parse_args()
+    if args.deltaT is None:
+        args.deltaT = 0.004
 
     vTCP = VTcpData(args.hdf5_file, args.fields)  # Initialize the virtual TCP creation.
 
@@ -258,16 +260,15 @@ if __name__ == "__main__":
     print(len(vTCP.data[0, :, 0]))
 
     # for i in range(np.shape(vTCP.data)[1]):
-        #     vTCP.plot_rgb_step(i, "vTCP_RGB_ignition")
-    vTCP.plot_temperature_step(50, args.name)
+    #     vTCP.plot_rgb_step(i, "vTCP_RGB_ignition")
+    # vTCP.plot_temperature_step(50, args.name)
 
     # Get the CHREST data associated with the simulation for the 3D stuff
-    file = []  # The files should be input here from the input arguments
-    data_3d = ChrestData(file)
+    data_3d = ablateData.AblateData(args.dns)
 
     # Calculate the difference between the DNS temperature and the tcp temperature
-    # temp_uncert_field = get_uncertainty_field(vTCP, data_3d)
-    # plot_uncertainty_field(temp_uncert_field)
+    temp_uncert_field = vTCP.get_uncertainty_field(data_3d)
+    vTCP.plot_uncertainty_field(temp_uncert_field)
 
     # It would be worth correlating the uncertainty field to something non-dimensional
     # Or at least related to the flame structure so that it can be generalized
