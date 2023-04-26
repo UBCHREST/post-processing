@@ -18,24 +18,36 @@ plt.rcParams["font.family"] = "Noto Serif CJK JP"
 
 class VTcpData:
 
-    def __init__(self, files=None, fields=None):
+    def __init__(self, files=None, fields=None, tcp_axis=None):
         self.prf = None
         self.field_size = len(fields)
+        if tcp_axis == "x":
+            self.tcp_axis = 0
+        if tcp_axis == "y":
+            self.tcp_axis = 1
+        if tcp_axis == "z":
+            self.tcp_axis = 2
 
         # Initialize the
-        vtcp = ablateData.AblateData(files)
-        [data_tmp, times_tmp, names_tmp] = vtcp.get_field(fields[0])
-        self.data = np.zeros((self.field_size, np.shape(data_tmp)[0], np.shape(data_tmp)[1]))
-        self.rgb = np.zeros((np.shape(data_tmp)[0], np.shape(data_tmp)[1], self.field_size))
+        vtcp = ChrestData(files)
+        self.start_point = vtcp.start_point
+        self.end_point = vtcp.end_point
+        # self.rgb = np.zeros((np.shape(self.data)[0], np.shape(self.data)[1], self.field_size))
         self.times = np.zeros(self.field_size)
         self.names = np.zeros(self.field_size)
         self.tcp_temperature = None
-        coords_tmp = vtcp.compute_cell_centers(3)
-        self.coords = np.zeros((self.field_size, np.shape(coords_tmp)[0], np.shape(coords_tmp)[1]))
+        self.temperature_error = None
+        # coords_tmp = vtcp.compute_cell_centers(3)
+        # self.coords = np.zeros((self.field_size, np.shape(coords_tmp)[0], np.shape(coords_tmp)[1]))
 
+        # Get the data from the vTCP files
+        self.data = np.array([])
         for f in range(self.field_size):
-            [self.data[f, :, :], self.times[f], self.names[f]] = vtcp.get_field(fields[f])
-            self.coords[f, :, :] = vtcp.compute_cell_centers(3)
+            data_tmp, _, _ = vtcp.get_field(fields[f])
+            if f == 0:
+                self.data = np.expand_dims(data_tmp, axis=0)
+            else:
+                self.data = np.vstack((self.data, np.expand_dims(data_tmp, axis=0)))
 
         self.set_limits()  # Sets the time step range of the processing
 
@@ -44,7 +56,7 @@ class VTcpData:
         # First, get the intensity ratio between the red and green channels (0 and 1)
         # Then, use the ratio to get the temperature
         # Finally, plot the temperature
-        ratio = self.data[1, :, :] / self.data[0, :, :]
+        ratio = self.data[1, :, :, :, :] / self.data[0, :, :, :, :]
         ratio = np.nan_to_num(ratio)
 
         c = 3.e8  # Speed of light
@@ -57,24 +69,25 @@ class VTcpData:
 
         lambdaR = 650e-9
         lambdaG = 532e-9
-        self.tcp_temperature = np.zeros([np.shape(self.data)[1], np.shape(self.data)[2]], dtype=np.dtype(float))
+        self.tcp_temperature = np.zeros_like(ratio, dtype=np.dtype(float))
 
         threshold_fraction = 0.05  # Threshold for the absolute intensity (keep at 0.15?)
 
         for n in range(np.shape(self.data)[1]):
             for i in range(np.shape(self.data)[2]):
-                if self.data[0, n, i] < threshold_fraction * np.max(self.data[0, n, :]) \
-                        or self.data[1, n, i] < threshold_fraction * np.max(self.data[1, n, :]):
-                    self.tcp_temperature[n, i] = 0  # If either channel is zero, set the temperature to zero
-                if ratio[n, i] == 0:
-                    self.tcp_temperature[n, i] = 0
-                else:
-                    self.tcp_temperature[n, i] = (c2 * ((1. / lambdaR) - (1. / lambdaG))) / (
-                            np.log(ratio[n, i]) + np.log((lambdaG / lambdaR) ** 5))  # + np.log(4.24 / 4.55))
-                if self.tcp_temperature[n, i] < 300:  # or self.tcp_temperature[i] > 3500:
-                    self.tcp_temperature[n, i] = 300
-                    # 4.24 and 4.55 are empirical optical constants for refractive index for the red and green channels
-                    # self.tcp_temperature[n, i] = self.tcp_temperature[n, i]
+                for j in range(np.shape(self.data)[3]):
+                    for k in range(np.shape(self.data)[4]):
+                        if self.data[0, n, i, j, k] < threshold_fraction * np.max(self.data[0, n, :, :, :]) \
+                                or self.data[1, n, i, j, k] < threshold_fraction * np.max(self.data[1, n, :, :, :]):
+                            self.tcp_temperature[
+                                n, i, j, k] = 0  # If either channel is zero, set the temperature to zero
+                        if ratio[n, i, j, k] == 0:
+                            self.tcp_temperature[n, i, j, k] = 0
+                        else:
+                            self.tcp_temperature[n, i, j, k] = (c2 * ((1. / lambdaR) - (1. / lambdaG))) / (
+                                    np.log(ratio[n, i, j, k]) + np.log((lambdaG / lambdaR) ** 5))
+                        if self.tcp_temperature[n, i, j, k] < 300:  # or self.tcp_temperature[i] > 3500:
+                            self.tcp_temperature[n, i, j, k] = 300
         # return self.tcp_temperature
 
         # Get the size of a single mesh.
@@ -86,30 +99,23 @@ class VTcpData:
         if self.tcp_temperature is None:
             self.get_tcp_temperature()  # Calculate the TCP temperature of the given boundary intensities
 
-        tcp_temperature_frame = np.vstack((self.coords[0, :, 0], self.coords[0, :, 1], self.tcp_temperature[n, :]))
-        tcp_temperature_frame = np.transpose(tcp_temperature_frame)
-
-        d = pd.DataFrame(tcp_temperature_frame, columns=['x', 'y', 'd'])
-        D = d.pivot_table(index='x', columns='y', values='d').T.values
-
-        X_unique = np.sort(d.x.unique())
-        Y_unique = np.sort(d.y.unique())
-        X, Y = np.meshgrid(X_unique, Y_unique)
+        tcp_temperature_frame = self.tcp_temperature[n, :, :, :]
 
         fig, ax = plt.subplots()
         ax.set_aspect('equal')
-        CS = ax.imshow(D, interpolation='none', cmap="inferno",
-                       origin='lower',
-                       extent=[tcp_temperature_frame[:, 0].min(), tcp_temperature_frame[:, 0].max(),
-                               tcp_temperature_frame[:, 1].min(), tcp_temperature_frame[:, 1].max()],
+        # plot the temperature as a slice in the z direction
+        im = ax.imshow(tcp_temperature_frame[0, :, :],
+                       interpolation='none', cmap="inferno",
+                       origin='lower', extent=[self.start_point[0], self.end_point[0],
+                                               self.start_point[1], self.end_point[1]],
                        vmax=4500, vmin=300)
-        fig.colorbar(CS, shrink=0.5, pad=0.05)
+        fig.colorbar(im, shrink=0.5, pad=0.05)
         # ax.clabel(CS, inline=True, fontsize=10)
         # ax.set_title('CHREST Format vTCP (n = ' + str(n) + ')')
         ax.set_xlabel("x [m]")
         ax.set_ylabel("y [m]")
-        # ax.legend(r"Temperature $[K]$")  # Add label for the temperature
-        plt.savefig(str(name) + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inches='tight')
+        ax.legend(r"Temperature $[K]$")  # Add label for the temperature
+        # plt.savefig(str(name) + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inchees='tight')
         plt.show()
 
         # tcp_temperature_filtered = tcp_temperature[tcp_temperature < 3500]
@@ -191,43 +197,41 @@ class VTcpData:
         plt.savefig(str(name) + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inches='tight')
         plt.show()
 
-    def get_uncertainty_field(self, n, ablate_data):
+    def get_uncertainty_field(self, dns_data):
         if self.tcp_temperature is None:
             self.get_tcp_temperature()  # Calculate the TCP temperature of the given boundary intensities
-        # Get the TCP temperature from the boundary information
-        tcp_temperature = self.tcp_temperature
 
         # Now that we have the tcp temperature, we want to get the maximum temperatures in each of the ray lines.
-        dns_temperature, _, _ = ablate_data.get_field("aux_temperature")
+        dns_temperature, _, _ = dns_data.get_field("temperature")
 
-        dns_coords = ablate_data.compute_cell_centers(3)
+        dns_maximum_temperature = dns_temperature.max(axis=(self.tcp_axis + 1), keepdims=True)
+
+        self.temperature_error = np.abs(dns_maximum_temperature - self.tcp_temperature)
 
         # Create a DataFrame with the coordinates and the temperature (just to use pandas group function)
-        dns_temperature_frame = np.vstack((dns_coords[:, 0], dns_coords[:, 1], dns_coords[:, 2], dns_temperature[n, :]))
-        dns_temperature_frame = np.transpose(dns_temperature_frame)
-
-        d = pd.DataFrame(dns_temperature_frame, columns=['x', 'y', 'z', 'd'])
-        # Group by x and y values, then find the maximum d value for each group
-        d_max = d.groupby(['x', 'y'])['d'].max().reset_index()
-
-        # Create a DataFrame for tcp_temperature
-        tcp_temperature_frame = np.vstack((self.coords[0, :, 0], self.coords[0, :, 1], self.tcp_temperature[n, :]))
-        tcp_temperature_frame = np.transpose(tcp_temperature_frame)
-        tcp_temperature_df = pd.DataFrame(tcp_temperature_frame, columns=['x', 'y', 'd'])
-
-        tcp_temperature_df['d'] = tcp_temperature_df['d'].apply(lambda x: x * -1)  # Multiply for subtraction
-        # Merge tcp_temperature_df with d_max on 'x' and 'y' coordinates
-        merged_df = d_max[['x', 'y']].merge(tcp_temperature_df, on=['x', 'y'], how='inner')
-
-        # Fill NaN values with zeros
-        merged_df.fillna(0, inplace=True)
-
-        # Calculate the uncertainty_field
-        uncertainty_df = merged_df.groupby(['x', 'y'])['d'].sum().reset_index()  # Subtract the tcp and dns temperatures
-        uncertainty_df['d'] = uncertainty_df['d'].apply(lambda x: abs(x))  # Take absolute value for error field
-        tcp_temperature_df['d'] = tcp_temperature_df['d'].apply(lambda x: x * -1)  # Multiply for recovery
-
-        return uncertainty_df, d_max, tcp_temperature_df
+        # dns_temperature_frame = np.vstack((dns_coords[:, 0], dns_coords[:, 1], dns_coords[:, 2], dns_temperature[n, :]))
+        # dns_temperature_frame = np.transpose(dns_temperature_frame)
+        #
+        # d = pd.DataFrame(dns_temperature_frame, columns=['x', 'y', 'z', 'd'])
+        # # Group by x and y values, then find the maximum d value for each group
+        # dns_maximum_temperature = d.groupby(['x', 'y'])['d'].max().reset_index()
+        #
+        # # Create a DataFrame for tcp_temperature
+        # tcp_temperature_frame = np.vstack((self.coords[0, :, 0], self.coords[0, :, 1], self.tcp_temperature[n, :]))
+        # tcp_temperature_frame = np.transpose(tcp_temperature_frame)
+        # tcp_temperature_df = pd.DataFrame(tcp_temperature_frame, columns=['x', 'y', 'd'])
+        #
+        # tcp_temperature_df['d'] = tcp_temperature_df['d'].apply(lambda x: x * -1)  # Multiply for subtraction
+        # # Merge tcp_temperature_df with dns_maximum_temperature on 'x' and 'y' coordinates
+        # merged_df = dns_maximum_temperature[['x', 'y']].merge(tcp_temperature_df, on=['x', 'y'], how='inner')
+        #
+        # # Fill NaN values with zeros
+        # merged_df.fillna(0, inplace=True)
+        #
+        # # Calculate the uncertainty_field
+        # uncertainty_df = merged_df.groupby(['x', 'y'])['d'].sum().reset_index()  # Subtract the tcp and dns temperatures
+        # uncertainty_df['d'] = uncertainty_df['d'].apply(lambda x: abs(x))  # Take absolute value for error field
+        # tcp_temperature_df['d'] = tcp_temperature_df['d'].apply(lambda x: x * -1)  # Multiply for recovery
 
     import matplotlib.gridspec as gridspec
 
@@ -301,29 +305,29 @@ if __name__ == "__main__":
                         help='What to call the outputs.', required=True)
     parser.add_argument('--dns', dest='dns', type=pathlib.Path,
                         help='Path to the volumetric DNS data.', required=True)
+    parser.add_argument('--tcp_axis', dest='tcp_axis', type=str,
+                        help='Direction of the tcp axis.', required=True)
 
     args = parser.parse_args()
     if args.deltaT is None:
         args.deltaT = 0.004
 
-    vTCP = VTcpData(args.hdf5_file, args.fields)  # Initialize the virtual TCP creation.
+    vTCP = VTcpData(args.hdf5_file, args.fields, args.tcp_axis)  # Initialize the virtual TCP creation.
 
     # vTCP.rgb_transform(args.deltaT)
     # vTCP.plot_rgb_step(41, "vTCP_RGB_ignition")
     print(len(vTCP.data[0, :, 0]))
 
     # for i in range(np.shape(vTCP.data)[1]):
-    #     vTCP.plot_rgb_step(i, "vTCP_RGB_ignition")
-    vTCP.plot_temperature_step(50, args.name)
+    #     vTCP.plot_temperature_step(i, "vTCP_RGB_ignition")
+    # vTCP.plot_temperature_step(50, args.name)
 
     # Get the CHREST data associated with the simulation for the 3D stuff
-    data_3d = ablateData.AblateData(args.dns)
+    data_3d = ChrestData(args.dns)
 
     # Calculate the difference between the DNS temperature and the tcp temperature
-    for i in range(np.shape(vTCP.data)[1]):
-        uncert_temp_frame, dns_temp_frame, tcp_temp_frame = vTCP.get_uncertainty_field(i, data_3d)
-        vTCP.plot_uncertainty_field(i, uncert_temp_frame, dns_temp_frame, tcp_temp_frame)
-
+    vTCP.get_uncertainty_field(data_3d)
+        # vTCP.plot_uncertainty_field(i, uncert_temp_frame, dns_temp_frame, tcp_temp_frame)
 
     # It would be worth correlating the uncertainty field to something non-dimensional
     # Or at least related to the flame structure so that it can be generalized
