@@ -19,6 +19,12 @@ plt.rcParams["font.family"] = "Noto Serif CJK JP"
 class VTcpData:
 
     def __init__(self, files=None, fields=None, tcp_axis=None):
+        self.tcp_soot = None
+        self.dns_optical_thickness = None
+        self.soot_error = None
+        self.temperature_error = None
+        self.dns_maximum_temperature = None
+        self.dns_maximum_soot = None
         self.prf = None
         self.field_size = len(fields)
         if tcp_axis == "x":
@@ -93,6 +99,18 @@ class VTcpData:
         # Get the size of a single mesh.
         # Iterate through the time steps
         # Iterate through each time step and place a point on the plot
+
+
+    def get_optical_thickness(self, dns_data):
+        # Calculate the optical thickness of the frame
+        # First get the absorption for each cell in the dns
+        dns_soot, _, _ = dns_data.get_field("Yi")  #TODO: Change this to soot mass fraction
+        dns_sum_soot = dns_soot.sum(axis=(self.tcp_axis + 1), keepdims=True)
+        self.dns_optical_thickness = dns_sum_soot * (self.end_point[self.tcp_axis] - self.start_point[self.tcp_axis])  # 1/m
+
+
+    def get_tcp_soot(self):
+        self.tcp_soot = np.zeros_like(self.tcp_temperature, dtype=np.dtype(float))
 
     def plot_temperature_step(self, n, name):
         # Get the tcp_temperature if it hasn't been computed already
@@ -200,51 +218,53 @@ class VTcpData:
     def get_uncertainty_field(self, dns_data):
         if self.tcp_temperature is None:
             self.get_tcp_temperature()  # Calculate the TCP temperature of the given boundary intensities
+        if self.tcp_soot is None:
+            self.get_tcp_soot()  # Calculate the TCP temperature of the given boundary intensities
 
         # Now that we have the tcp temperature, we want to get the maximum temperatures in each of the ray lines.
         dns_temperature, _, _ = dns_data.get_field("temperature")
-
+        dns_soot, _, _ = dns_data.get_field("Yi")
         self.dns_maximum_temperature = dns_temperature.max(axis=(self.tcp_axis + 1), keepdims=True)
-
+        self.dns_maximum_soot = dns_soot.max(axis=(self.tcp_axis + 1), keepdims=True)
         self.temperature_error = np.abs(self.dns_maximum_temperature - self.tcp_temperature)
+        self.soot_error = np.abs(self.dns_maximum_soot - self.tcp_soot)
 
-        # Create a DataFrame with the coordinates and the temperature (just to use pandas group function)
-        # dns_temperature_frame = np.vstack((dns_coords[:, 0], dns_coords[:, 1], dns_coords[:, 2], dns_temperature[n, :]))
-        # dns_temperature_frame = np.transpose(dns_temperature_frame)
-        #
-        # d = pd.DataFrame(dns_temperature_frame, columns=['x', 'y', 'z', 'd'])
-        # # Group by x and y values, then find the maximum d value for each group
-        # dns_maximum_temperature = d.groupby(['x', 'y'])['d'].max().reset_index()
-        #
-        # # Create a DataFrame for tcp_temperature
-        # tcp_temperature_frame = np.vstack((self.coords[0, :, 0], self.coords[0, :, 1], self.tcp_temperature[n, :]))
-        # tcp_temperature_frame = np.transpose(tcp_temperature_frame)
-        # tcp_temperature_df = pd.DataFrame(tcp_temperature_frame, columns=['x', 'y', 'd'])
-        #
-        # tcp_temperature_df['d'] = tcp_temperature_df['d'].apply(lambda x: x * -1)  # Multiply for subtraction
-        # # Merge tcp_temperature_df with dns_maximum_temperature on 'x' and 'y' coordinates
-        # merged_df = dns_maximum_temperature[['x', 'y']].merge(tcp_temperature_df, on=['x', 'y'], how='inner')
-        #
-        # # Fill NaN values with zeros
-        # merged_df.fillna(0, inplace=True)
-        #
-        # # Calculate the uncertainty_field
-        # uncertainty_df = merged_df.groupby(['x', 'y'])['d'].sum().reset_index()  # Subtract the tcp and dns temperatures
-        # uncertainty_df['d'] = uncertainty_df['d'].apply(lambda x: abs(x))  # Take absolute value for error field
-        # tcp_temperature_df['d'] = tcp_temperature_df['d'].apply(lambda x: x * -1)  # Multiply for recovery
+    def plot_optical_thickness(self, n):
 
-    import matplotlib.gridspec as gridspec
+        optical_thickness_frame = self.dns_optical_thickness[n, :, :, :]
+
+        fig, ax = plt.subplots()
+        ax.set_aspect('equal')
+        # plot the temperature as a slice in the z direction
+        im = ax.imshow(optical_thickness_frame[0, :, :],
+                       interpolation='none', cmap="inferno",
+                       origin='lower', extent=[self.start_point[0], self.end_point[0],
+                                               self.start_point[1], self.end_point[1]],
+                       vmax=optical_thickness_frame.max(), vmin=optical_thickness_frame.min())
+        fig.colorbar(im, shrink=0.5, pad=0.05, label=r"Optical Thickness $[m]$")
+        # ax.clabel(CS, inline=True, fontsize=10)
+        # ax.set_title('CHREST Format vTCP (n = ' + str(n) + ')')
+        ax.set_xlabel("x [m]")
+        ax.set_ylabel("y [m]")
+        # ax.legend(r"Optical Thickness $[m]$")  # Add label for the temperature
+        plt.tight_layout()
+        plt.savefig("opticalThickness" + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inchees='tight')
+        plt.show()
 
     def plot_uncertainty_field(self, n):
         # if self.temperature_error is None:
         #     self.get_uncertainty_field()
 
-        fig = plt.figure(figsize=(8, 7))
-        gs = gridspec.GridSpec(3, 2, width_ratios=[20, 1], height_ratios=[1, 1, 1])
+        fig = plt.figure(figsize=(16, 7))
+        gs = gridspec.GridSpec(3, 4, width_ratios=[20, 1, 20, 1], height_ratios=[1, 1, 1])
 
-        tcp_temperature_frame = self.tcp_temperature[n, :, :, :]
-        dns_temperature_frame = self.dns_maximum_temperature[n, :, :, :]
-        temperature_error_frame = self.temperature_error[n, :, :, :]
+        tcp_soot_frame = self.tcp_temperature[n, :, :, :]
+        dns_soot_frame = self.dns_maximum_temperature[n, :, :, :]
+        soot_error_frame = self.temperature_error[n, :, :, :]
+
+        tcp_temperature_frame = self.tcp_soot[n, :, :, :]
+        dns_temperature_frame = self.dns_maximum_soot[n, :, :, :]
+        temperature_error_frame = self.soot_error[n, :, :, :]
 
         # Plot dns_temperature
         ax1 = fig.add_subplot(gs[0, 0])
@@ -274,7 +294,7 @@ class VTcpData:
                          extent=[self.start_point[0], self.end_point[0],
                                  self.start_point[1], self.end_point[1]],
                          vmax=1000, vmin=0)
-        ax3.set_title("Error Field")
+        ax3.set_title("Temperature Error Field")
         ax3.set_xlabel("x [m]")
         ax3.set_ylabel("y [m]")
 
@@ -288,6 +308,49 @@ class VTcpData:
         cbar2 = fig.colorbar(im3, cax=cbar_ax2, orientation='vertical', label="Error [K]")
         cbar_ax2.yaxis.set_ticks_position('right')
         cbar_ax2.yaxis.set_label_position('right')
+
+        # Plot dns_soot
+        ax4 = fig.add_subplot(gs[0, 2])
+        im4 = ax4.imshow(dns_soot_frame[0, :, :], interpolation='none', cmap="inferno",
+                         origin='lower',
+                         extent=[self.start_point[0], self.end_point[0],
+                                 self.start_point[1], self.end_point[1]],
+                         vmax=tcp_soot_frame.max(), vmin=tcp_soot_frame.min())
+        ax4.set_title("DNS Soot")
+        ax4.set_ylabel("y [m]")
+
+        # Plot tcp_soot
+        ax5 = fig.add_subplot(gs[1, 2])
+        im5 = ax5.imshow(tcp_soot_frame[0, :, :],
+                         interpolation='none', cmap="inferno",
+                         origin='lower', extent=[self.start_point[0], self.end_point[0],
+                                                 self.start_point[1], self.end_point[1]],
+                         vmax=tcp_soot_frame.max(), vmin=tcp_soot_frame.min())
+        ax5.set_title("TCP Soot")
+        ax5.set_ylabel("y [m]")
+
+        # Plot uncertainty
+        ax6 = fig.add_subplot(gs[2, 2])
+
+        im6 = ax6.imshow(soot_error_frame[0, :, :], interpolation='none', cmap="inferno",
+                         origin='lower',
+                         extent=[self.start_point[0], self.end_point[0],
+                                 self.start_point[1], self.end_point[1]],
+                         vmax=soot_error_frame.max(), vmin=soot_error_frame.min())
+        ax6.set_title("Soot Error Field")
+        ax6.set_xlabel("x [m]")
+        ax6.set_ylabel("y [m]")
+
+        # Add colorbar
+        cbar_ax4 = fig.add_subplot(gs[0:2, 3])
+        cbar3 = fig.colorbar(im4, cax=cbar_ax4, orientation='vertical', label="Soot Volume Fraction")
+        cbar_ax4.yaxis.set_ticks_position('right')
+        cbar_ax4.yaxis.set_label_position('right')
+
+        cbar_ax5 = fig.add_subplot(gs[2, 3])
+        cbar4 = fig.colorbar(im6, cax=cbar_ax5, orientation='vertical', label="Soot Error")
+        cbar_ax5.yaxis.set_ticks_position('right')
+        cbar_ax5.yaxis.set_label_position('right')
 
         plt.tight_layout()
         plt.savefig(str("thing") + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inches='tight')
@@ -335,10 +398,12 @@ if __name__ == "__main__":
     # Get the CHREST data associated with the simulation for the 3D stuff
     data_3d = ChrestData(args.dns)
     vTCP.get_uncertainty_field(data_3d)
+    # vTCP.get_optical_thickness(data_3d)
 
     # Calculate the difference between the DNS temperature and the tcp temperature
     for i in range(np.shape(vTCP.data)[1]):
         vTCP.plot_uncertainty_field(i)
+        # vTCP.plot_optical_thickness(i)
 
     # It would be worth correlating the uncertainty field to something non-dimensional
     # Or at least related to the flame structure so that it can be generalized

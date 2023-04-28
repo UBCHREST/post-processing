@@ -278,6 +278,18 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    # with h5py.File("/home/owen/tcpTestCase/domain/domain.00061.hdf5", 'r') as f:
+    #     # # Now you can access the fields within the hdf5 file
+    #     # if 'aux_Yi_C_solid' in f:
+    #     #     aux_Yi_C_solid_data = f['aux_Yi_C_solid'][()]
+    #     # else:
+    #     #     print("Field 'aux_Yi_C_solid' not found in the hdf5 file")
+    #     def print_attrs(name, obj):
+    #         print(name)
+    #
+    #
+    #     f.visititems(print_attrs)
+
     # this is some example code for chest file post-processing
     ablate_data = AblateData(args.file)
 
