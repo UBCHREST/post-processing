@@ -89,7 +89,6 @@ class PerformanceAnalysis:
         for e in range(len(self.events)):
             # Initialization static scaling analysis
             plt.figure(figsize=(10, 6), num=1)
-            plt.title("Initialization Static Scaling" + dims, pad=1)
             for n in range(len(rays)):
                 for i in range(len(self.processes)):
                     mask = np.isfinite(self.times[e, n, i, :])
@@ -100,7 +99,7 @@ class PerformanceAnalysis:
             plt.xticks(fontsize=10)
             plt.xlabel(r'DOF $[cells]$', fontsize=10)
             plt.ylabel(r'Performance $[\frac{DOF}{s}]$', fontsize=10)
-            labels = dtheta
+            labels = 0
             labels = np.append(labels, self.processes)
             plt.legend(self.handles, labels, loc="upper left")
             plt.savefig(self.base_path + "/figures/" + self.name + str(self.events[e]) + '_static_scaling.png', dpi=1500, bbox_inches='tight')
@@ -120,7 +119,6 @@ class PerformanceAnalysis:
                             weak_init[n, x, j] = float("nan")
 
             plt.figure(figsize=(6, 4), num=1)
-            plt.title("Initialization Weak Scaling", pad=1)
             I = len(self.processes)
             for n in range(len(rays)):
                 for i in range(len(self.faces) + len(self.processes)):
@@ -187,6 +185,36 @@ class PerformanceAnalysis:
             plt.savefig(self.base_path + "/figures/" + self.name + str(self.events[e]) + '_strong_scaling.png', dpi=1500, bbox_inches='tight')
             plt.show()
 
+    def plot_performance_contour(self, discretization_index):
+        # Initialization Strong scaling analysis
+        plt.figure(figsize=(6, 4), num=4)
+        r = discretization_index
+        for e in range(len(self.events)):
+            processes_mesh, problems_mesh = np.meshgrid(self.processes, self.cell_size)
+            performance = np.zeros_like(self.times[e, r, :, :])
+            for p in range(len(self.processes)):
+                performance[p, :] = self.cell_size / self.times[e, r, p, :]
+
+            # Calculate performance
+            # performance = cellsize_mesh / problems_mesh
+            contour = plt.contour(problems_mesh, processes_mesh, np.transpose(self.times[e, r, :, :]), levels=5)
+
+            # Add contour labels
+            plt.clabel(contour, inline=True, fontsize=8, fmt='%1.2f')
+
+            # Set axis labels and ticks
+            plt.ylabel('MPI Processes', fontsize=10)
+            plt.xlabel('DOF', fontsize=10)
+            plt.xticks(fontsize=10)
+            plt.yticks(fontsize=10)
+
+            # Save the figure and display the plot
+            if not os.path.exists(self.base_path + "/figures"):
+                os.makedirs(self.base_path + "/figures")
+            plt.savefig(self.base_path + "/figures/" + self.name + str(self.events[e]) + '_performance_contour.png',
+                        dpi=1500, bbox_inches='tight')
+            plt.show()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -210,6 +238,7 @@ if __name__ == "__main__":
     scaling_data = PerformanceAnalysis(args.base_path, args.name, args.processes,
                                        args.problems, args.cell_size, rays, args.events)
     scaling_data.load_csv_files()
-    scaling_data.plot_strong_scaling(scaling_data.gustafson_func)
+    # scaling_data.plot_strong_scaling(scaling_data.gustafson_func)
+    scaling_data.plot_performance_contour(0)
     # scaling_data.plot_weak_scaling()
     # scaling_data.plot_static_scaling()
