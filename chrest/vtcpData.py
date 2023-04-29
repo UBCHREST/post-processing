@@ -23,6 +23,7 @@ class VTcpData:
         c = 299792458
         k = 1.380622e-23
         self.C_2 = h * c / k
+        self.C_1 = 2 * np.pi * h * c * c
         self.C_0 = 7.0  # Constants for the absorptivity calculations
 
         self.tcp_soot = None
@@ -118,8 +119,18 @@ class VTcpData:
         self.dns_optical_thickness = dns_sum_soot * (
                 self.end_point[self.tcp_axis] - self.start_point[self.tcp_axis])
 
-    def get_tcp_soot(self, dns_data):
-        self.tcp_soot = None
+    def get_tcp_soot(self):
+        lambda_r = 650.e-9
+        path_length = self.end_point[self.tcp_axis] - self.start_point[self.tcp_axis]
+        self.tcp_soot = np.zeros_like(self.tcp_temperature)
+        threshold_condition = (self.tcp_temperature > 400.0)
+        self.tcp_soot = np.where(
+            threshold_condition,
+            (-lambda_r * 1.e9 / (self.C_0 * path_length)) * np.log(
+                1 - (self.data[0, :, :, :, :] * (lambda_r ** 5) * np.exp(
+                    self.C_2 / (lambda_r * self.tcp_temperature))) / self.C_1),
+            self.tcp_soot
+        )
 
     def get_dns_soot(self, dns_data):
         dns_soot_mass, _, _ = dns_data.get_field("Yi")
