@@ -258,13 +258,13 @@ class VTcpData:
         fig = plt.figure(figsize=(16, 7))
         gs = gridspec.GridSpec(3, 4, width_ratios=[20, 1, 20, 1], height_ratios=[1, 1, 1])
 
-        tcp_soot_frame = self.tcp_temperature[n, :, :, :]
-        dns_soot_frame = self.dns_maximum_temperature[n, :, :, :]
-        soot_error_frame = self.temperature_error[n, :, :, :]
+        tcp_temperature_frame = self.tcp_temperature[n, :, :, :]
+        dns_temperature_frame = self.dns_maximum_temperature[n, :, :, :]
+        temperature_error_frame = self.temperature_error[n, :, :, :]
 
-        tcp_temperature_frame = self.tcp_soot[n, :, :, :]
-        dns_temperature_frame = self.dns_maximum_soot[n, :, :, :]
-        temperature_error_frame = self.soot_error[n, :, :, :]
+        tcp_soot_frame = self.tcp_soot[n, :, :, :]
+        dns_soot_frame = self.dns_maximum_soot[n, :, :, :]
+        soot_error_frame = self.soot_error[n, :, :, :]
 
         # Plot dns_temperature
         ax1 = fig.add_subplot(gs[0, 0])
@@ -353,7 +353,7 @@ class VTcpData:
         cbar_ax5.yaxis.set_label_position('right')
 
         plt.tight_layout()
-        plt.savefig(str("thing") + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inches='tight')
+        # plt.savefig(str("thing") + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inches='tight')
         plt.show()
 
 
