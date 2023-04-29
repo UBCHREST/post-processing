@@ -19,13 +19,21 @@ plt.rcParams["font.family"] = "Noto Serif CJK JP"
 class VTcpData:
 
     def __init__(self, files=None, fields=None, tcp_axis=None):
+        h = 6.62607004e-34
+        c = 299792458
+        k = 1.380622e-23
+        self.C_2 = h * c / k
+        self.C_0 = 7.0  # Constants for the absorptivity calculations
+
         self.tcp_soot = None
+        self.dns_soot = None
         self.dns_optical_thickness = None
         self.soot_error = None
         self.temperature_error = None
         self.dns_maximum_temperature = None
         self.dns_maximum_soot = None
         self.prf = None
+        self.rhoC = 2000  # [kg / m^3]
         self.field_size = len(fields)
         if tcp_axis == "x":
             self.tcp_axis = 0
@@ -100,17 +108,23 @@ class VTcpData:
         # Iterate through the time steps
         # Iterate through each time step and place a point on the plot
 
-
     def get_optical_thickness(self, dns_data):
         # Calculate the optical thickness of the frame
         # First get the absorption for each cell in the dns
-        dns_soot, _, _ = dns_data.get_field("Yi")  #TODO: Change this to soot mass fraction
-        dns_sum_soot = dns_soot.sum(axis=(self.tcp_axis + 1), keepdims=True)
-        self.dns_optical_thickness = dns_sum_soot * (self.end_point[self.tcp_axis] - self.start_point[self.tcp_axis])  # 1/m
+        dns_temperature, _, _ = dns_data.get_field("temperature")
+        kappa = (3.72 * self.dns_soot * self.C_0 * dns_temperature) / self.C_2
+        # Then sum the absorption through all cells in the ray line
+        dns_sum_soot = kappa.sum(axis=(self.tcp_axis + 1), keepdims=True)
+        self.dns_optical_thickness = dns_sum_soot * (
+                self.end_point[self.tcp_axis] - self.start_point[self.tcp_axis])
 
+    def get_tcp_soot(self, dns_data):
+        self.tcp_soot = None
 
-    def get_tcp_soot(self):
-        self.tcp_soot = np.zeros_like(self.tcp_temperature, dtype=np.dtype(float))
+    def get_dns_soot(self, dns_data):
+        dns_soot_mass, _, _ = dns_data.get_field("Yi")
+        dns_density, _, _ = dns_data.get_field("rho")
+        self.dns_soot = dns_density * dns_soot_mass / self.rhoC
 
     def plot_temperature_step(self, n, name):
         # Get the tcp_temperature if it hasn't been computed already
@@ -241,7 +255,7 @@ class VTcpData:
                        origin='lower', extent=[self.start_point[0], self.end_point[0],
                                                self.start_point[1], self.end_point[1]],
                        vmax=optical_thickness_frame.max(), vmin=optical_thickness_frame.min())
-        fig.colorbar(im, shrink=0.5, pad=0.05, label=r"Optical Thickness $[m]$")
+        fig.colorbar(im, shrink=0.5, pad=0.05, label=r"Optical Thickness")
         # ax.clabel(CS, inline=True, fontsize=10)
         # ax.set_title('CHREST Format vTCP (n = ' + str(n) + ')')
         ax.set_xlabel("x [m]")
