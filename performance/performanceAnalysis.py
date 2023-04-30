@@ -197,7 +197,13 @@ class PerformanceAnalysis:
 
             # Calculate performance
             # performance = cellsize_mesh / problems_mesh
-            contour = plt.contour(problems_mesh, processes_mesh, np.transpose(self.times[e, r, :, :]), levels=5)
+                # Set log scale for contour levels
+            min_time = np.min(self.times[e, r, :, :][self.times[e, r, :, :] > 0])
+            max_time = np.max(self.times[e, r, :, :])
+            num_levels = 5
+            levels = np.logspace(np.log10(min_time), np.log10(max_time), num_levels)
+
+            contour = plt.contour(problems_mesh, processes_mesh, np.transpose(self.times[e, r, :, :]), levels=levels)
 
             # Add contour labels
             plt.clabel(contour, inline=True, fontsize=8, fmt='%1.2f')
@@ -207,6 +213,11 @@ class PerformanceAnalysis:
             plt.xlabel('DOF', fontsize=10)
             plt.xticks(fontsize=10)
             plt.yticks(fontsize=10)
+
+            # Set log scale for both axes
+            ax = plt.gca()
+            ax.set_xscale('log')
+            ax.set_yscale('log')
 
             # Save the figure and display the plot
             if not os.path.exists(self.base_path + "/figures"):
