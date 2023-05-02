@@ -16,11 +16,12 @@ from scipy import ndimage
 
 class PerformanceAnalysis:
 
-    def __init__(self, base_path=None, name=None, processes=None, faces=None, cell_size=None, rays=None, events=None):
+    def __init__(self, base_path=None, name=None, processes=None, faces=None, cell_size=None, rays=None, events=None, write_path=None):
         self.times = None
         self.markerarray = None
         self.colorarray = None
         self.base_path = base_path
+        self.write_path = write_path
         self.name = name
         self.processes = processes
         self.faces = faces
@@ -105,7 +106,9 @@ class PerformanceAnalysis:
             labels = 0
             labels = np.append(labels, self.processes)
             plt.legend(self.handles, labels, loc="upper left")
-            plt.savefig(self.base_path + "/figures/" + self.name + str(self.events[e]) + '_static_scaling.png',
+            if not os.path.exists(self.write_path + "/figures"):
+                os.makedirs(self.write_path + "/figures")
+            plt.savefig(self.write_path + "/figures/" + self.name + str(self.events[e]) + '_static_scaling.png',
                         dpi=1500, bbox_inches='tight')
             plt.show()
 
@@ -183,9 +186,9 @@ class PerformanceAnalysis:
             # labels = np.append(labels, faces)
             # plt.legend(["2D"], loc="upper left")  # , "3D"
             # plt.legend()
-            if not os.path.exists(self.base_path + "/figures"):
-                os.makedirs(self.base_path + "/figures")
-            plt.savefig(self.base_path + "/figures/" + self.name + str(self.events[e]) + '_strong_scaling.png',
+            if not os.path.exists(self.write_path + "/figures"):
+                os.makedirs(self.write_path + "/figures")
+            plt.savefig(self.write_path + "/figures/" + self.name + str(self.events[e]) + '_strong_scaling.png',
                         dpi=1500, bbox_inches='tight')
             plt.show()
 
@@ -224,9 +227,9 @@ class PerformanceAnalysis:
             ax.set_yscale('log')
 
             # Save the figure and display the plot
-            if not os.path.exists(self.base_path + "/figures"):
-                os.makedirs(self.base_path + "/figures")
-            plt.savefig(self.base_path + "/figures/" + self.name + str(self.events[e]) + '_performance_contour.png',
+            if not os.path.exists(self.write_path + "/figures"):
+                os.makedirs(self.write_path + "/figures")
+            plt.savefig(self.write_path + "/figures/" + self.name + str(self.events[e]) + '_performance_contour.png',
                         dpi=1500, bbox_inches='tight')
             plt.show()
 
@@ -246,14 +249,21 @@ if __name__ == "__main__":
                         help='Mesh or dof size associated with each problem.')
     parser.add_argument('--events', dest='events', type=str, required=True, nargs="+",
                         help='Event names to measure.')
+    parser.add_argument('--write_to', dest='write_path', type=str, required=False,
+                        help='Event names to measure.')
 
     args = parser.parse_args()
     rays = np.array([5, 10, 25, 50])
 
+    if args.write_path is not None:
+        write_path = args.write_path
+    else:
+        write_path = args.base_path
+
     scaling_data = PerformanceAnalysis(args.base_path, args.name, args.processes,
-                                       args.problems, args.cell_size, rays, args.events)
+                                       args.problems, args.cell_size, rays, args.events, write_path)
     scaling_data.load_csv_files()
     # scaling_data.plot_performance_contour(0)
-    # scaling_data.plot_strong_scaling(None)
-    scaling_data.plot_weak_scaling(0, 20.0)
+    scaling_data.plot_strong_scaling(None)
+    # scaling_data.plot_weak_scaling(0, 20.0)
     # scaling_data.plot_static_scaling()
