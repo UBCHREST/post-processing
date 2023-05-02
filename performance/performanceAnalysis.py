@@ -40,6 +40,37 @@ class PerformanceAnalysis:
     def gustafson_func(n, t0, s, c, d, f):
         return t0 * np.log(n) + s * np.log(n) * np.log(n) + d * np.log(n) * np.log(n) * np.log(n) + c * n ** f
 
+    # For communication cost models:
+    # beta : bandwidth cost of the network
+    # n : size of the data
+    # p : number of processes
+    # alpha : latency cost of the network
+    # gamma : cost of computation
+
+    @staticmethod
+    def broadcast(p, n, alpha, beta):
+        return np.log2(p) * (3 * alpha + n * beta)
+
+    @staticmethod
+    def reduce(p, n, alpha, beta, gamma):  # Additional cost associated with computation of reduction.
+        return np.log2(p) * (3 * alpha + n * beta + n * gamma)
+
+    @staticmethod
+    def scatter(p, n, alpha, k, beta):  # And gather
+        return 3 * alpha * np.log2(p) + ((p - 1) * n * beta) / p
+
+    @staticmethod
+    def gather(p, n, alpha, k, beta):  # And gather
+        return 3 * alpha * np.log2(p) + ((p - 1) * n * beta) / p
+
+    @staticmethod
+    def bidirectional_all_gather(p, n, alpha, beta):
+        return 3 * alpha * np.log2(p) + (n * beta)
+
+    @staticmethod
+    def bidirectional_reduce_scatter():
+        return 0
+
     def set_plot_parameters(self):
         # Set up plotting options that must be defined by the user
         self.colorarray = ["o", "s", "o", "s", ".", ".", ".", ".",

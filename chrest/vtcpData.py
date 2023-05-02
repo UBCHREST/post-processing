@@ -1,24 +1,17 @@
 import argparse
-import pathlib
-import sys
 import numpy as np
-import h5py
-import matplotlib.cm as cm
 import matplotlib.pyplot as plt  # for plotting
 import pandas as pd
 import matplotlib.gridspec as gridspec
-
 from chrest.chrestData import ChrestData
-from xdmfGenerator import XdmfGenerator
-from supportPaths import expand_path
-import ablateData
+import os
 
 plt.rcParams["font.family"] = "Noto Serif CJK JP"
 
 
 class VTcpData:
 
-    def __init__(self, files=None, fields=None, tcp_axis=None):
+    def __init__(self, files=None, fields=None, tcp_axis=None, base_path=None, write_path=None, save=None):
         h = 6.62607004e-34
         c = 299792458
         k = 1.380622e-23
@@ -26,9 +19,12 @@ class VTcpData:
         self.C_1 = 2 * np.pi * h * c * c
         self.C_0 = 7.0  # Constants for the absorptivity calculations
 
+        self.base_path = base_path
+        self.write_path = write_path
         self.tcp_soot = None
         self.dns_soot = None
         self.dns_optical_thickness = None
+        self.save = save
         self.soot_error = None
         self.temperature_error = None
         self.dns_maximum_temperature = None
@@ -44,7 +40,7 @@ class VTcpData:
             self.tcp_axis = 2
 
         # Initialize the
-        vtcp = ChrestData(files)
+        vtcp = ChrestData(base_path + "/" + files)
         self.start_point = vtcp.start_point
         self.end_point = vtcp.end_point
         # self.rgb = np.zeros((np.shape(self.data)[0], np.shape(self.data)[1], self.field_size))
@@ -113,7 +109,9 @@ class VTcpData:
         # Calculate the optical thickness of the frame
         # First get the absorption for each cell in the dns
         dns_temperature, _, _ = dns_data.get_field("temperature")
-        kappa = (3.72 * self.dns_soot * self.C_0 * dns_temperature) / self.C_2
+        if self.dns_soot is None:
+            self.get_dns_soot(dns_data)
+        kappa = (3.72 * self.dns_soot * self.C_0 * dns_temperature) / self.C_2  # Soot mean absorption
         # Then sum the absorption through all cells in the ray line
         dns_sum_soot = kappa.sum(axis=(self.tcp_axis + 1), keepdims=True)
         self.dns_optical_thickness = dns_sum_soot * (
@@ -133,9 +131,8 @@ class VTcpData:
         )
 
     def get_dns_soot(self, dns_data):
-        dns_soot_mass, _, _ = dns_data.get_field("Yi")
-        dns_density, _, _ = dns_data.get_field("rho")
-        self.dns_soot = dns_density * dns_soot_mass / self.rhoC
+        dns_density_yi, _, _ = dns_data.get_field("densityYi")
+        self.dns_soot = dns_density_yi / self.rhoC
 
     def plot_temperature_step(self, n, name):
         # Get the tcp_temperature if it hasn't been computed already
@@ -158,6 +155,7 @@ class VTcpData:
         ax.set_xlabel("x [m]")
         ax.set_ylabel("y [m]")
         ax.legend(r"Temperature $[K]$")  # Add label for the temperature
+        # if self.save:
         # plt.savefig(str(name) + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inchees='tight')
         plt.show()
 
@@ -233,11 +231,10 @@ class VTcpData:
         CS = ax.imshow(np.rot90(np.array([R.data, G.data, B.data]).T, axes=(0, 1)), interpolation='lanczos',
                        extent=[rframe[:, 0].min(), rframe[:, 0].max(), rframe[:, 1].min(), rframe[:, 1].max()],
                        vmax=abs(R).max(), vmin=-abs(R).max())
-        # ax.clabel(CS, inline=True, fontsize=10)
-        # ax.set_title('Simulated Camera (n = ' + str(n) + ')')
         ax.set_xlabel("x [m]")
         ax.set_ylabel("y [m]")
-        plt.savefig(str(name) + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inches='tight')
+        if self.save:
+            plt.savefig(self.write_path + "/" + (name) + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inches='tight')
         plt.show()
 
     def get_uncertainty_field(self, dns_data):
@@ -248,7 +245,7 @@ class VTcpData:
 
         # Now that we have the tcp temperature, we want to get the maximum temperatures in each of the ray lines.
         dns_temperature, _, _ = dns_data.get_field("temperature")
-        dns_soot, _, _ = dns_data.get_field("Yi")
+        dns_soot, _, _ = dns_data.get_field("densityYi")
         self.dns_maximum_temperature = dns_temperature.max(axis=(self.tcp_axis + 1), keepdims=True)
         self.dns_maximum_soot = dns_soot.max(axis=(self.tcp_axis + 1), keepdims=True)
         self.temperature_error = np.abs(self.dns_maximum_temperature - self.tcp_temperature)
@@ -267,19 +264,14 @@ class VTcpData:
                                                self.start_point[1], self.end_point[1]],
                        vmax=optical_thickness_frame.max(), vmin=optical_thickness_frame.min())
         fig.colorbar(im, shrink=0.5, pad=0.05, label=r"Optical Thickness")
-        # ax.clabel(CS, inline=True, fontsize=10)
-        # ax.set_title('CHREST Format vTCP (n = ' + str(n) + ')')
         ax.set_xlabel("x [m]")
         ax.set_ylabel("y [m]")
-        # ax.legend(r"Optical Thickness $[m]$")  # Add label for the temperature
         plt.tight_layout()
-        plt.savefig("opticalThickness" + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inchees='tight')
+        if self.save:
+            plt.savefig(self.write_path + "/" + "opticalThickness" + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inchees='tight')
         plt.show()
 
     def plot_uncertainty_field(self, n):
-        # if self.temperature_error is None:
-        #     self.get_uncertainty_field()
-
         fig = plt.figure(figsize=(16, 7))
         gs = gridspec.GridSpec(3, 4, width_ratios=[20, 1, 20, 1], height_ratios=[1, 1, 1])
 
@@ -378,7 +370,8 @@ class VTcpData:
         cbar_ax5.yaxis.set_label_position('right')
 
         plt.tight_layout()
-        # plt.savefig(str("thing") + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inches='tight')
+        if self.save:
+            plt.savefig(self.write_path + "/" + "uncertaintyField" + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inches='tight')
         plt.show()
 
 
@@ -387,7 +380,11 @@ if __name__ == "__main__":
         description='Generate plots from virtual TCP data. '
                     'See https://github.com/cet-lab/experimental-post-processing/wiki'
                     '/Matlab-To-XdmfGenerator for details.  ')
-    parser.add_argument('--file', dest='hdf5_file', type=pathlib.Path, required=True,
+    parser.add_argument('--base_path', dest='base_path', type=str, required=True,
+                        help='The path to the ablate hdf5 file(s) containing the ablate data.'
+                             '  A wild card can be used '
+                             'to supply more than one file.')
+    parser.add_argument('--file', dest='hdf5_file', type=str, required=True,
                         help='The path to the ablate hdf5 file(s) containing the ablate data.'
                              '  A wild card can be used '
                              'to supply more than one file.')
@@ -401,37 +398,45 @@ if __name__ == "__main__":
                         help='Impacts the saturation of the virtual camera.', required=False)
     parser.add_argument('--name', dest='name', type=str,
                         help='What to call the outputs.', required=True)
-    parser.add_argument('--dns', dest='dns', type=pathlib.Path,
+    parser.add_argument('--dns', dest='dns', type=str,
                         help='Path to the volumetric DNS data.', required=True)
     parser.add_argument('--tcp_axis', dest='tcp_axis', type=str,
                         help='Direction of the tcp axis.', required=True)
+    parser.add_argument('--write_path', dest='write_path', type=str, required=False,
+                        help='Path to save figures to.')
+    parser.add_argument('--save', dest='save', type=bool, required=False,
+                        help='Event names to measure.')
 
     args = parser.parse_args()
     if args.deltaT is None:
         args.deltaT = 0.004
+    if args.write_path is not None:
+        write_path = args.write_path
+    else:
+        write_path = args.base_path + "/figures"
+    if args.save is None:
+        args.save = True
+    if not os.path.exists(write_path):
+        os.makedirs(write_path)
 
-    vTCP = VTcpData(args.hdf5_file, args.fields, args.tcp_axis)  # Initialize the virtual TCP creation.
+    vTCP = VTcpData(args.hdf5_file, args.fields, args.tcp_axis, args.base_path, write_path, args.save)  # Initialize
+    # the virtual TCP creation.
 
-    # vTCP.rgb_transform(args.deltaT)
-    # vTCP.plot_rgb_step(41, "vTCP_RGB_ignition")
     print(len(vTCP.data[0, :, 0]))
 
-    # for i in range(np.shape(vTCP.data)[1]):
-    #     vTCP.plot_temperature_step(i, "vTCP_RGB_ignition")
-    # vTCP.plot_temperature_step(50, args.name)
-
     # Get the CHREST data associated with the simulation for the 3D stuff
-    data_3d = ChrestData(args.dns)
+    data_3d = ChrestData(args.base_path + "/" + args.dns)
     vTCP.get_uncertainty_field(data_3d)
-    # vTCP.get_optical_thickness(data_3d)
+    vTCP.get_optical_thickness(data_3d)
 
     # Calculate the difference between the DNS temperature and the tcp temperature
     for i in range(np.shape(vTCP.data)[1]):
+        vTCP.plot_optical_thickness(i)
+    for i in range(np.shape(vTCP.data)[1]):
         vTCP.plot_uncertainty_field(i)
-        # vTCP.plot_optical_thickness(i)
 
     # It would be worth correlating the uncertainty field to something non-dimensional
     # Or at least related to the flame structure so that it can be generalized
-    # Maybe the mixture fraction is an appropriate value?    # Save mp4 out of all the frames stitched together.
+    # Maybe the mixture fraction is an appropriate value?
 
     print('Done')
