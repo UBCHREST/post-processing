@@ -4,6 +4,8 @@ from os.path import exists
 from scipy.optimize import curve_fit
 import argparse
 import os
+import scipy
+from scipy import ndimage
 
 
 # Template path: "outputs/Scaling2D_30_16_[105, 15].xml"
@@ -26,6 +28,7 @@ class PerformanceAnalysis:
         self.events = np.asarray(events, dtype=bytes)
         self.rays = rays
         self.set_plot_parameters()
+        self.processes_mesh, self.problems_mesh = np.meshgrid(self.processes, self.cell_size)
 
     @staticmethod
     def r_squared_func(y, y_fit):
@@ -102,41 +105,41 @@ class PerformanceAnalysis:
             labels = 0
             labels = np.append(labels, self.processes)
             plt.legend(self.handles, labels, loc="upper left")
-            plt.savefig(self.base_path + "/figures/" + self.name + str(self.events[e]) + '_static_scaling.png', dpi=1500, bbox_inches='tight')
+            plt.savefig(self.base_path + "/figures/" + self.name + str(self.events[e]) + '_static_scaling.png',
+                        dpi=1500, bbox_inches='tight')
             plt.show()
 
-    def plot_weak_scaling(self):
+    def plot_weak_scaling(self, discretization_index, cells_per_process):
+        r = discretization_index
         for e in range(len(self.events)):
-            # Initialization Weak scaling analysis
-            weak_init = np.zeros([len(self.rays), len(self.processes) + len(self.faces), len(self.faces)])
-            I = len(self.processes)
-            for n in range(len(rays)):
-                for i in range(len(self.processes)):
-                    for j in range(len(self.faces)):
-                        x = ((I - 1) - i) + j
-                        weak_init[n, x, j] = self.times[e, n, i, j]
-                        if weak_init[n, x, j] == 0:
-                            weak_init[n, x, j] = float("nan")
+            # Coordinates of the line we'd like to sample along
+            line = [(0, 0),
+                    (self.processes.max() * cells_per_process, self.processes.max())]
 
-            plt.figure(figsize=(6, 4), num=1)
-            I = len(self.processes)
-            for n in range(len(rays)):
-                for i in range(len(self.faces) + len(self.processes)):
-                    weak_init = np.diagonal(self.times, offset=(i - I), axis1=0, axis2=1)
-                    mask = np.isfinite(weak_init)
-                    x = self.cell_size
-                    y = self.cell_size / weak_init
-                    # Bring the lowest available index to the line to normalize the scaling plot *
-                    # (ideal / lowest available index)
-                    first = np.argmax(mask)
+            # Convert the line to piself.problems_meshel/index coordinates
+            x_world, y_world = np.array(list(zip(*line)))
+            col = self.times[e, r, :, :].shape[1] * (x_world - self.problems_mesh.min()) / self.problems_mesh.ptp()
+            row = self.times[e, r, :, :].shape[0] * (y_world - self.processes_mesh.min()) / self.processes_mesh.ptp()
 
-                    plt.loglog(x[mask], (self.cell_size[first] * y[first]) / y[mask], linewidth=1, marker='.')
-            plt.yticks(fontsize=10)
-            plt.xticks(fontsize=10)
-            plt.xlabel(r'DOF $[cells]$', fontsize=10)
-            plt.ylabel(r'Efficiency', fontsize=10)
-            # plt.legend(faces, loc="upper left")
-            plt.savefig(self.base_path + "/figures/" + self.name + str(self.events[e]) + '_weak_scaling.png', dpi=1500, bbox_inches='tight')
+            # Interpolate the line at "num" points...
+            num = 100
+            row, col = [np.linspace(item[0], item[1], num) for item in [row, col]]
+
+            # Extract the values along the line, using cubic interpolation
+            zi = ndimage.map_coordinates(self.times[e, r, :, :], np.vstack((row, col)))
+
+            # Plot...
+            fig, axes = plt.subplots(nrows=2, figsize=(6, 6))
+            axes[0].pcolormesh(self.problems_mesh, self.processes_mesh, np.transpose(self.times[e, r, :, :]))
+            axes[0].plot(x_world, y_world, 'ro-')
+            axes[0].axis('image')
+            axes[0].set_box_aspect(1)
+
+            # axes[0].set_aspect('equal')
+
+            # axes[1].plot(x_world, zi)
+
+            axes[1].plot(zi)
             plt.show()
 
     def plot_strong_scaling(self, function_fit):
@@ -154,7 +157,7 @@ class PerformanceAnalysis:
                     # (ideal / lowest available index)
                     first = np.argmax(mask)
 
-                    if np.sum(mask) > 5:
+                    if np.sum(mask) > 5 and function_fit is not None:
                         # Perform non-linear curve fitting
                         popt, pcov = curve_fit(function_fit, x[mask], y[mask])  # , bounds=param_bounds)
 
@@ -167,7 +170,7 @@ class PerformanceAnalysis:
 
                         plt.loglog(x[mask], (self.processes[first] * y[first]) / y_fit, c="black", linestyle="-.",
                                    label=f'Fitted curve: t0={t0:.2f}, s={s:.2f}, c={c:.2f}, r^2={r_squared:.2f}')
-                        print(f't0={t0:.2f}, s={s:.2f}, c={c:.2f}, d={d:.2f}, f={f:.2f}, r^2={r_squared:.2f}')
+                        # print(f't0={t0:.2f}, s={s:.2f}, c={c:.2f}, d={d:.2f}, f={f:.2f}, r^2={r_squared:.2f}')
                     adjusted = (self.processes[first] * y[first]) / y[mask]
                     plt.loglog(x[mask], adjusted, linewidth=1, marker=self.colorarray[i],
                                c="black", markersize=4)
@@ -182,7 +185,8 @@ class PerformanceAnalysis:
             # plt.legend()
             if not os.path.exists(self.base_path + "/figures"):
                 os.makedirs(self.base_path + "/figures")
-            plt.savefig(self.base_path + "/figures/" + self.name + str(self.events[e]) + '_strong_scaling.png', dpi=1500, bbox_inches='tight')
+            plt.savefig(self.base_path + "/figures/" + self.name + str(self.events[e]) + '_strong_scaling.png',
+                        dpi=1500, bbox_inches='tight')
             plt.show()
 
     def plot_performance_contour(self, discretization_index):
@@ -190,20 +194,20 @@ class PerformanceAnalysis:
         plt.figure(figsize=(6, 4), num=4)
         r = discretization_index
         for e in range(len(self.events)):
-            processes_mesh, problems_mesh = np.meshgrid(self.processes, self.cell_size)
-            performance = np.zeros_like(self.times[e, r, :, :])
-            for p in range(len(self.processes)):
-                performance[p, :] = self.cell_size / self.times[e, r, p, :]
+            # performance = np.zeros_like(self.times[e, r, :, :])
+            # for p in range(len(self.processes)):
+            #     performance[p, :] = self.cell_size / self.times[e, r, p, :]
 
             # Calculate performance
             # performance = cellsize_mesh / problems_mesh
-                # Set log scale for contour levels
+            # Set log scale for contour levels
             min_time = np.min(self.times[e, r, :, :][self.times[e, r, :, :] > 0])
             max_time = np.max(self.times[e, r, :, :])
             num_levels = 5
             levels = np.logspace(np.log10(min_time), np.log10(max_time), num_levels)
 
-            contour = plt.contour(problems_mesh, processes_mesh, np.transpose(self.times[e, r, :, :]), levels=levels)
+            contour = plt.contour(self.problems_mesh, self.processes_mesh, np.transpose(self.times[e, r, :, :]),
+                                  levels=levels)
 
             # Add contour labels
             plt.clabel(contour, inline=True, fontsize=8, fmt='%1.2f')
@@ -249,7 +253,7 @@ if __name__ == "__main__":
     scaling_data = PerformanceAnalysis(args.base_path, args.name, args.processes,
                                        args.problems, args.cell_size, rays, args.events)
     scaling_data.load_csv_files()
-    # scaling_data.plot_strong_scaling(scaling_data.gustafson_func)
-    scaling_data.plot_performance_contour(0)
-    # scaling_data.plot_weak_scaling()
+    # scaling_data.plot_performance_contour(0)
+    # scaling_data.plot_strong_scaling(None)
+    scaling_data.plot_weak_scaling(0, 20.0)
     # scaling_data.plot_static_scaling()
