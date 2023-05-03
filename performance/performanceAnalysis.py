@@ -49,27 +49,39 @@ class PerformanceAnalysis:
 
     @staticmethod
     def broadcast(p, n, alpha, beta):
-        return np.log2(p) * (3 * alpha + n * beta)
+        return np.log2(p) * (3.0 * alpha + n * beta)
 
     @staticmethod
     def reduce(p, n, alpha, beta, gamma):  # Additional cost associated with computation of reduction.
-        return np.log2(p) * (3 * alpha + n * beta + n * gamma)
+        return np.log2(p) * (3.0 * alpha + n * beta + n * gamma)
 
     @staticmethod
     def scatter(p, n, alpha, k, beta):  # And gather
-        return 3 * alpha * np.log2(p) + ((p - 1) * n * beta) / p
+        return 3.0 * alpha * np.log2(p) + ((p - 1.0) * n * beta) / p
 
     @staticmethod
     def gather(p, n, alpha, k, beta):  # And gather
-        return 3 * alpha * np.log2(p) + ((p - 1) * n * beta) / p
+        return 3.0 * alpha * np.log2(p) + ((p - 1.0) * n * beta) / p
 
     @staticmethod
     def bidirectional_all_gather(p, n, alpha, beta):
-        return 3 * alpha * np.log2(p) + (n * beta)
+        return 3.0 * alpha * np.log2(p) + (n * beta)
 
     @staticmethod
-    def bidirectional_reduce_scatter():
-        return 0
+    def bidirectional_reduce_scatter(p, n, alpha, beta, gamma):
+        return np.log2(p) * 3.0 * alpha + ((p - 1.0) / p) * n * (beta + gamma)
+
+    @staticmethod
+    def bucket_all_gather(p, n, alpha, beta):
+        return p * alpha + ((p - 1.0) / p) * n * beta
+
+    @staticmethod
+    def bucket_reduce_scatter(p, n, alpha, beta, gamma):
+        return p * alpha + ((p - 1.0) / p) * n * (beta + gamma)
+
+    @staticmethod
+    def all_reduce(p, n, alpha, beta, gamma):
+        return np.log2(p) * (3.0 * alpha + n * beta + n * gamma)
 
     def set_plot_parameters(self):
         # Set up plotting options that must be defined by the user
