@@ -173,7 +173,7 @@ class VTcpData:
         else:
             self.start = 0  # Set the start time step to the first by default
 
-    def rgb_transform(self, deltaT):
+    def rgb_transform(self, delta_t):
         self.prf = np.loadtxt("PRF_Color.csv", delimiter=',', skiprows=0)
 
         # Get the correct exposure for the camera by getting the maximum intensity for each channel and shifting to 255
@@ -182,7 +182,7 @@ class VTcpData:
         for fieldIndex in range(self.field_size):
             for timeStep in range(np.shape(self.data)[1]):
                 for pointIndex in range(np.shape(self.data)[2]):
-                    brightness_transformed = np.log(np.pi * self.data[fieldIndex, timeStep, pointIndex] * deltaT)
+                    brightness_transformed = np.log(np.pi * self.data[fieldIndex, timeStep, pointIndex] * delta_t)
                     if brightness_transformed > brightness_max[fieldIndex]:
                         brightness_max[fieldIndex] = brightness_transformed
         for fieldIndex in range(self.field_size):
@@ -193,7 +193,7 @@ class VTcpData:
             for timeStep in range(np.shape(self.data)[1]):
                 for pointIndex in range(np.shape(self.data)[2]):
                     brightness = 0
-                    brightness_transformed = np.log(np.pi * self.data[fieldIndex, timeStep, pointIndex] * deltaT)
+                    brightness_transformed = np.log(np.pi * self.data[fieldIndex, timeStep, pointIndex] * delta_t)
                     brightness_transformed += shift_constant
 
                     if np.isinf(brightness_transformed):
