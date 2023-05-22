@@ -27,6 +27,8 @@ class AblateData:
 
         # store the files based upon time
         self.files_per_time = dict()
+        self.timeitervals = []
+        self.numintervals = 1
         self.times = []
 
         # store the cells and vertices
@@ -55,6 +57,8 @@ class AblateData:
         # Store the list of times
         self.times = list(self.files_per_time.keys())
         self.times.sort()
+        self.timeitervals.append(self.times.copy())
+        
 
         # Load in any available metadata based upon the file structure
         self.metadata['path'] = str(self.files[0])
@@ -119,69 +123,87 @@ class AblateData:
     gets the specified field and the number of components
     """
 
-    def get_field(self, field_name, component_names=None):
+    def get_field(self, field_name, interwal, component_names=None):
         # create a dictionary of times/data
         data = []
         components = 0
         all_component_names = None
         # march over the files
-        for t in self.times:
-            # Load in the file
-            with h5py.File(self.files_per_time[t], 'r') as hdf5:
-                try:
-                    # Check each of the cell fields
-                    hdf5_field = hdf5['cell_fields'][field_name]
-
-                    if len(hdf5_field[0, :].shape) > 1:
-                        components = hdf5_field[0, :].shape[1]
-                        # check for component names
-                        all_component_names = [""] * components
-
-                        for i in range(components):
-                            if ('componentName' + str(i)) in hdf5_field.attrs:
-                                all_component_names[i] = hdf5_field.attrs['componentName' + str(i)].decode("utf-8")
-
-                    # load in the specified field name, but check if we should down select components
-                    if component_names is None:
-                        hdf_field_data = hdf5_field[0, :]
-                        data.append(hdf_field_data)
-                    else:
-                        # get the indexes
-                        indexes = []
-                        for component_name in component_names:
-                            try:
-                                indexes.append(all_component_names.index(component_name))
-                            except ValueError as error:
-                                raise Exception("Cannot locate " + component_name + " in field " + field_name + ". ",
-                                                error)
-
-                        # sort the index list in order
-                        index_name_list = zip(indexes, component_names)
-                        index_name_list = sorted(index_name_list)
-                        indexes, component_names = zip(*index_name_list)
-
-                        # down select only the components that were asked for
-                        hdf_field_data = hdf5_field[0, ..., list(indexes)]
-                        data.append(hdf_field_data)
-                        all_component_names = list(component_names)
-                        components = len(all_component_names)
-                except Exception as e:
-                    raise Exception(
-                        "Unable to open field " + field_name + "." + str(e))
-
+        for t in self.timeitervals[interwal]:
+            # for i in range(start,stop):
+                # Load in the file
+                with h5py.File(self.files_per_time[t], 'r') as hdf5:
+                    try:
+                        # Check each of the cell fields
+                        hdf5_field = hdf5['cell_fields'][field_name]
+    
+                        if len(hdf5_field[0, :].shape) > 1:
+                            components = hdf5_field[0, :].shape[1]
+                            # check for component names
+                            all_component_names = [""] * components
+    
+                            for i in range(components):
+                                if ('componentName' + str(i)) in hdf5_field.attrs:
+                                    all_component_names[i] = hdf5_field.attrs['componentName' + str(i)].decode("utf-8")
+    
+                        # load in the specified field name, but check if we should down select components
+                        if component_names is None:
+                            hdf_field_data = hdf5_field[0, :]
+                            data.append(hdf_field_data)
+                        else:
+                            # get the indexes
+                            indexes = []
+                            for component_name in component_names:
+                                try:
+                                    indexes.append(all_component_names.index(component_name))
+                                except ValueError as error:
+                                    raise Exception("Cannot locate " + component_name + " in field " + field_name + ". ",
+                                                    error)
+    
+                            # sort the index list in order
+                            index_name_list = zip(indexes, component_names)
+                            index_name_list = sorted(index_name_list)
+                            indexes, component_names = zip(*index_name_list)
+    
+                            # down select only the components that were asked for
+                            hdf_field_data = hdf5_field[0, ..., list(indexes)]
+                            data.append(hdf_field_data)
+                            all_component_names = list(component_names)
+                            components = len(all_component_names)
+                    except Exception as e:
+                        raise Exception(
+                            "Unable to open field " + field_name + "." + str(e))
+                hdf5.close
+                
         return np.stack(data), components, all_component_names
+    
+    def sort_time(self, inputn):
+        vector = self.times
+        n=int(inputn)
+        self.numintervals = len(vector) // n    # Calculate the number of sub-vectors
+    
+        self.timeitervals = [vector[i:i+n] for i in range(0, self.numintervals * n, n)]
+    
+        # If there are any remaining elements, create a sub-vector with the leftover elements
+        remaining_elements = len(vector) % n
+        if remaining_elements != 0:
+            self.timeitervals.append(vector[self.numintervals * n:])
+    
+        # return sub_vectors
+    
 
     """
     converts the supplied fields ablate object to chrest data object.
     """
 
-    def map_to_chrest_data(self, chrest_data, field_mapping, field_select_components=dict(),
+    def map_to_chrest_data(self, chrest_data, field_mapping,iteration, field_select_components=dict(),
                            max_distance=sys.float_info.max):
         # get the cell centers for this mesh
         cell_centers = self.compute_cell_centers(chrest_data.dimensions)
 
         # add the ablate times to chrest
-        chrest_data.times = self.times.copy()
+        # chrest_data.times = self.times.copy()
+        chrest_data.times = self.timeitervals[iteration].copy()
 
         # store the fields in ablate we need
         ablate_fields = list(field_mapping.keys())
@@ -192,6 +214,7 @@ class AblateData:
         components = []
 
         # create the new field in the chrest data
+        
         for ablate_field in ablate_fields:
             chrest_field = field_mapping[ablate_field]
 
@@ -199,7 +222,7 @@ class AblateData:
             component_select_names = field_select_components.get(ablate_field)
 
             # get the field from ablate
-            ablate_field_data_tmp, components_tmp, component_names = self.get_field(ablate_field,
+            ablate_field_data_tmp, components_tmp, component_names = self.get_field(ablate_field,iteration,
                                                                                     component_select_names)
 
             ablate_field_data.append(ablate_field_data_tmp)
@@ -275,6 +298,11 @@ if __name__ == "__main__":
 
     parser.add_argument('--max_distance', dest='max_distance', type=float,
                         help="The max distance to search for a point in ablate", default=sys.float_info.max)
+    
+    parser.add_argument('--batchsize', dest='batchsize', type=float,
+                        help="The number of files to be loaded in at once")
+    
+    
 
     args = parser.parse_args()
 
@@ -298,14 +326,24 @@ if __name__ == "__main__":
     # create a chrest data
     chrest_data = ChrestData()
     chrest_data.setup_new_grid(args.start, args.end, args.delta)
+    
+    if args.batchsize is not None:
+        if len(ablate_data.times) > args.batchsize:
+            ablate_data.sort_time(args.batchsize)
+            print("The code processes " + str(args.batchsize) + " images at a time.")
+        else:
+            ablate_data.sort_time(len(ablate_data.times))
+            print("The code processes " + str(len(ablate_data.times)) + " images at a time.")
+    
 
-    # map the ablate data to chrest
-    ablate_data.map_to_chrest_data(chrest_data, field_mappings, component_select_names, args.max_distance)
+    for i in range(0,ablate_data.numintervals):
+        # map the ablate data to chrest
+        ablate_data.map_to_chrest_data(chrest_data, field_mappings,i, component_select_names, args.max_distance)
 
-    # write the new file without wild card
-    chrest_data_path_base = args.file.parent / (str(args.file.stem).replace("*", "") + ".chrest")
-    chrest_data_path_base.mkdir(parents=True, exist_ok=True)
-    chrest_data_path_base = chrest_data_path_base / (str(args.file.stem).replace("*", "") + ".chrest")
-
-    # Save the result data
-    chrest_data.save(chrest_data_path_base)
+        # write the new file without wild card
+        chrest_data_path_base = args.file.parent / (str(args.file.stem).replace("*", "") + ".chrest")
+        chrest_data_path_base.mkdir(parents=True, exist_ok=True)
+        chrest_data_path_base = chrest_data_path_base / (str(args.file.stem).replace("*", "") + ".chrest")
+    
+        # Save the result data
+        chrest_data.savepart(chrest_data_path_base,i,len(ablate_data.timeitervals[0]))
