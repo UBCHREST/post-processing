@@ -468,12 +468,12 @@ if __name__ == "__main__":
     vTCP.get_optical_thickness(data_3d)
 
     # Calculate the difference between the DNS temperature and the tcp temperature
-    # for i in range(np.shape(vTCP.data)[1]):
-    #     vTCP.plot_optical_thickness(i)
-    # for i in range(np.shape(vTCP.data)[1]):
-    #     vTCP.plot_uncertainty_field(i)
+    for i in range(np.shape(vTCP.data)[1]):
+        vTCP.plot_optical_thickness(i)
+    for i in range(np.shape(vTCP.data)[1]):
+        vTCP.plot_uncertainty_field(i)
 
-    vTCP.plot_line_of_sight(50, data_3d)
+    # vTCP.plot_line_of_sight(50, data_3d)
 
     # It would be worth correlating the uncertainty field to something non-dimensional
     # Or at least related to the flame structure so that it can be generalized
