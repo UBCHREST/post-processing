@@ -268,7 +268,8 @@ class VTcpData:
         ax.set_ylabel("y [m]")
         plt.tight_layout()
         if self.save:
-            plt.savefig(self.write_path + "/" + "opticalThickness" + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inchees='tight')
+            plt.savefig(self.write_path + "/" + "opticalThickness" + "." + str(n).zfill(3) + ".png", dpi=1000,
+                        bbox_inchees='tight')
         plt.show()
 
     def plot_uncertainty_field(self, n):
@@ -371,7 +372,44 @@ class VTcpData:
 
         plt.tight_layout()
         if self.save:
-            plt.savefig(self.write_path + "/" + "uncertaintyField" + "." + str(n).zfill(3) + ".png", dpi=1000, bbox_inches='tight')
+            plt.savefig(self.write_path + "/" + "uncertaintyField" + "." + str(n).zfill(3) + ".png", dpi=1000,
+                        bbox_inches='tight')
+        plt.show()
+
+    def plot_line_of_sight(self, n, data_3d):
+        fig, ax = plt.subplots(3, 1, figsize=(10, 15))
+
+        # Create an array for the x-axis.
+        x = data_3d.grid
+        x = np.transpose(x, (1, 2, 0))
+
+        dns_temperature, _, _ = data_3d.get_field("temperature")
+
+        # Plot temperature along the line of sight
+        ax[0].scatter(x, dns_temperature[n, :, :, :], color='r', label='Temperature')
+        ax[0].set_title("Temperature along the line of sight")
+        ax[0].set_ylabel("Temperature [K]")
+        ax[0].legend()
+
+        # Plot soot volume fraction along the line of sight
+        ax[1].scatter(x, self.dns_soot[n, :, :, :], color='b', label='Soot Volume Fraction')
+        ax[1].set_title("Soot volume fraction along the line of sight")
+        ax[1].set_ylabel("Soot Volume Fraction")
+        ax[1].legend()
+
+        # Calculate the absorption for each cell in the line of sight
+        kappa = (3.72 * self.dns_soot[n, :, :, :] * self.C_0 * self.dns_temperature[n, :, :, :]) / self.C_2
+
+        # Plot absorption coefficient along the line of sight
+        ax[2].scatter(x, kappa, color='g', label='Absorption Coefficient')
+        ax[2].set_title("Absorption coefficient along the line of sight")
+        ax[2].set_xlabel("Position along the line of sight")
+        ax[2].set_ylabel("Absorption Coefficient")
+        ax[2].legend()
+
+        plt.tight_layout()
+        if self.save:
+            plt.savefig(self.write_path + "/" + "line_of_sight" + ".png", dpi=1000, bbox_inches='tight')
         plt.show()
 
 
@@ -430,10 +468,12 @@ if __name__ == "__main__":
     vTCP.get_optical_thickness(data_3d)
 
     # Calculate the difference between the DNS temperature and the tcp temperature
-    for i in range(np.shape(vTCP.data)[1]):
-        vTCP.plot_optical_thickness(i)
-    for i in range(np.shape(vTCP.data)[1]):
-        vTCP.plot_uncertainty_field(i)
+    # for i in range(np.shape(vTCP.data)[1]):
+    #     vTCP.plot_optical_thickness(i)
+    # for i in range(np.shape(vTCP.data)[1]):
+    #     vTCP.plot_uncertainty_field(i)
+
+    vTCP.plot_line_of_sight(50, data_3d)
 
     # It would be worth correlating the uncertainty field to something non-dimensional
     # Or at least related to the flame structure so that it can be generalized
