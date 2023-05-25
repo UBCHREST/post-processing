@@ -28,7 +28,7 @@ class AblateData:
         # store the files based upon time
         self.files_per_time = dict()
         self.timeitervals = []
-        self.numintervals = 1
+        self.numintervals = 0
         self.times = []
 
         # store the cells and vertices
@@ -177,10 +177,15 @@ class AblateData:
                 
         return np.stack(data), components, all_component_names
     
-    def sort_time(self, inputn):
-        vector = self.times
+    def sort_time(self, inputn,filerange):
+        if int(filerange[1])!=-1:
+            vector = self.times[int(filerange[0]):int(filerange[1])+1]
+        elif int(filerange[1])!=0:
+            vector = self.times[int(filerange[0]-1):int(filerange[1])]
+        else:
+            vector = self.times
         n=int(inputn)
-        self.numintervals = len(vector) // n    # Calculate the number of sub-vectors
+        self.numintervals = (len(vector) // n)    # Calculate the number of sub-vectors
     
         self.timeitervals = [vector[i:i+n] for i in range(0, self.numintervals * n, n)]
     
@@ -188,7 +193,9 @@ class AblateData:
         remaining_elements = len(vector) % n
         if remaining_elements != 0:
             self.timeitervals.append(vector[self.numintervals * n:])
-    
+            self.numintervals += 1
+        # if remaining_elements == 0:
+        #     self.numintervals += 1 
         # return sub_vectors
     
 
@@ -272,17 +279,17 @@ if __name__ == "__main__":
                              'to supply more than one file.')
     parser.add_argument('--start', dest='start', type=float,
                         help='Optional starting point for chrest data. Default is [0., 0.0, -0.0127]',
-                        nargs='+', default=[0., 0.0, -0.0127]
+                        nargs='+', default=[0., 0.0, -0.0128]
                         )
 
     parser.add_argument('--end', dest='end', type=float,
                         help='Optional ending point for chrest data. Default is [0.1, 0.0254, 0.0127]',
-                        nargs='+', default=[0.1, 0.0254, 0.0127]
+                        nargs='+', default=[0.1, 0.0256, 0.0128]
                         )
 
     parser.add_argument('--delta', dest='delta', type=float,
                         help='Optional grid spacing for chrest data. Default is [0.0005, 0.0005, 0.0005]',
-                        nargs='+', default=[0.0005, 0.0005, 0.0005]
+                        nargs='+', default=[0.00025, 0.00025, 0.00025]
                         )
 
     parser.add_argument('--fields', dest='fields', type=str,
@@ -301,6 +308,10 @@ if __name__ == "__main__":
     
     parser.add_argument('--batchsize', dest='batchsize', type=float,
                         help="The number of files to be loaded in at once")
+    
+    parser.add_argument('--filerange', dest='filerange', type=float,
+                        help="The first and last files that the user want to process in the directory default is: [0 -1]",
+                        nargs='+')
     
     
 
@@ -327,15 +338,19 @@ if __name__ == "__main__":
     chrest_data = ChrestData()
     chrest_data.setup_new_grid(args.start, args.end, args.delta)
     
+    if args.filerange is None:
+        filerange=[0,len(ablate_data.times)]
+    else:
+        filerange=args.filerange    
+        
     if args.batchsize is not None:
         if len(ablate_data.times) > args.batchsize:
-            ablate_data.sort_time(args.batchsize)
-            print("The code processes " + str(args.batchsize) + " images at a time.")
+            ablate_data.sort_time(args.batchsize,filerange)
+            print("The code processes " + str(args.batchsize) + " files at a time.")
         else:
-            ablate_data.sort_time(len(ablate_data.times))
-            print("The code processes " + str(len(ablate_data.times)) + " images at a time.")
+            ablate_data.sort_time(len(ablate_data.times),filerange)
+            print("The code processes " + str(len(ablate_data.times)) + " files at a time.")
     
-
     for i in range(0,ablate_data.numintervals):
         # map the ablate data to chrest
         ablate_data.map_to_chrest_data(chrest_data, field_mappings,i, component_select_names, args.max_distance)
