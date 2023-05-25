@@ -240,7 +240,7 @@ class AblateData:
 
         # now search and copy over data
         tree = KDTree(cell_centers)
-        dist, points = tree.query(chrest_cell_centers)
+        dist, points = tree.query(chrest_cell_centers, workers=-1)
 
         # march over each field
         for f in range(len(ablate_field_data)):
