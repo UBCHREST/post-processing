@@ -28,7 +28,7 @@ class AblateData:
         # store the files based upon time
         self.files_per_time = dict()
         self.timeitervals = []
-        self.numintervals = 0
+        self.numintervals = 1
         self.times = []
 
         # store the cells and vertices
