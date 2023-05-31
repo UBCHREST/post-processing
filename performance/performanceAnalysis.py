@@ -16,7 +16,8 @@ from scipy import ndimage
 
 class PerformanceAnalysis:
 
-    def __init__(self, base_path=None, name=None, processes=None, faces=None, cell_size=None, rays=None, events=None, write_path=None):
+    def __init__(self, base_path=None, name=None, processes=None, faces=None, cell_size=None, rays=None, events=None,
+                 write_path=None):
         self.times = None
         self.markerarray = None
         self.colorarray = None
@@ -37,8 +38,21 @@ class PerformanceAnalysis:
 
     # Do curve fitting of the data for performance modelling purposes.
     @staticmethod
-    def gustafson_func(n, t0, s, c, d, f):
-        return t0 * np.log(n) + s * np.log(n) * np.log(n) + d * np.log(n) * np.log(n) * np.log(n) + c * n ** f
+    def ray_recombination_function(d, p, c, r, alpha, beta, f, g):
+        return r * ((c / p) ** ((d + 1) / d)) * f + alpha * np.log2(p) + beta + r * (c / p) * (p ** (1 / d)) * g
+
+    @staticmethod
+    def segment_evaluation_function(d, p, c, r, alpha, f, g):
+        d = 1
+        return r * ((c / p) ** ((d + 1) / d)) * f
+
+    @staticmethod
+    def communication_function(p, alpha):
+        return alpha * np.log2(p) + n * beta
+
+    @staticmethod
+    def ray_collapse_function(d, p, r, c, g):
+        return r * (c / p) * (p ** (1 / d)) * g
 
     # For communication cost models:
     # beta : bandwidth cost of the network
@@ -296,7 +310,7 @@ if __name__ == "__main__":
                         help='Event names to measure.')
 
     args = parser.parse_args()
-    rays = np.array([5, 10, 25, 50])
+    rays = np.array([23, 15])
 
     if args.write_path is not None:
         write_path = args.write_path
@@ -310,3 +324,49 @@ if __name__ == "__main__":
     scaling_data.plot_strong_scaling(None)
     # scaling_data.plot_weak_scaling(0, 20.0)
     # scaling_data.plot_static_scaling()
+
+    # import numpy as np
+    # import matplotlib.pyplot as plt
+    #
+    # plt.rcParams["font.family"] = "Noto Serif CJK JP"
+    #
+    # import numpy as np
+    # import matplotlib.pyplot as plt
+    #
+    # # Define the parameters
+    # alpha = [10.0E-6, 2.0E-6]  # Communication latency
+    # beta = [1/600E9, 1/21.E9]  # Memory bandwidth cost
+    # linestyles = ['-', '--', '-.']
+    # d = 3  # Dimensions
+    # p = np.logspace(1, 7, 400)  # MPI processes
+    #
+    # plt.figure(figsize=(8, 6))
+    # for i in range(len(alpha)):
+    #     # Compute the discretization N
+    #     N = alpha[i] * np.log2(p) * (p ** (1 / d) - 1) / (p ** (1 / d) * (7 * beta[i]) - 5 * beta[i])
+    #
+    #     # Create the plot
+    #     plt.loglog(p, N, color='k', linestyle=linestyles[i])
+    # # plt.fill_between(p, 0, N, alpha=0, color='black')  # Fill the area under the curve
+    #
+    # # # Add horizontal lines at y=1E6 and y=1E4
+    # # plt.axhline(y=1E6, color='k', linestyle='--')
+    # # plt.axhline(y=1E4, color='k', linestyle='--')
+    #
+    # # Add labels and title
+    # plt.xlabel('MPI Processes', fontsize=12)
+    # plt.ylabel('N', fontsize=12)
+    # # plt.ylim([0, 1E7])
+    #
+    # # Add annotations
+    # # plt.annotate('Sweeping Method', xy=(0.25, 0.75), xycoords='axes fraction', ha='center', color='black')
+    # # plt.annotate('Ray Recombination Method', xy=(0.75, 0.25), xycoords='axes fraction', ha='center', color='black')
+    #
+    # plt.legend(["Nvidia GPU Cluster", "Intel Xeon Cluster", "CPU2"], frameon=False)
+    # plt.grid(True)
+    # savePath = "/home/owen/CLionProjects/ParallelRadiationJCP/figures/"
+    # plt.savefig(savePath + 'PerformanceTradeoffPoint', dpi=1000, bbox_inches='tight')
+    # plt.show()
+
+# --path /home/owen/ablateInputs/ScalingTests/csvFiles --name volumetricSFScaling --processes 1 2 4 8 16 32 64 128 256 512 1024 2048 4096 --problems [105,15] [149,21] [297,42] --dof 1575 3129 12474 --events Radiation::Initialize Radiation::EvaluateGains --write_to /home/owen/CLionProjects/ParallelRadiationJCP
+# --path /home/owen/1d_scaling --name irradiation --processes 36 72 144 288 576 1152 2304 --problems [50000] --dof 50000 --events Radiation::EvaluateGains::Communication Radiation::EvaluateGains::Recombination Radiation::EvaluateGains::LocalSegmentIntegration --write_to /home/owen/CLionProjects/ParallelRadiationJCP
