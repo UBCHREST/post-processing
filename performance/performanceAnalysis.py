@@ -111,7 +111,7 @@ class PerformanceAnalysis:
 
     def load_csv_files(self):
         # Create arrays which the parsed information will be stored inside: Whatever information is desired
-        self.times = np.zeros([len(self.events), len(self.rays), len(self.processes), len(self.faces)])
+        self.times = np.zeros([len(self.events) + 1, len(self.rays), len(self.processes), len(self.faces)])
         # Iterate through the arrays to get information out of the files
         for r in range(len(self.rays)):
             for p in range(len(self.processes)):
@@ -134,9 +134,14 @@ class PerformanceAnalysis:
                                     self.times[e, r, p, f] = data[i][
                                         2]  # If it is, then write the value in column 4 of that line
 
+                        self.times[len(self.events), r, p, f] = np.sum(self.times[:, r, p, f])
+                        np.append(self.events, "Total")
+
+                        for e in range(len(self.events)):
                             # If the time is never written then the filter code then don't try to plot it
                             if self.times[e, r, p, f] == 0:
                                 self.times[e, r, p, f] = float("nan")
+
 
         self.processes = np.asarray(self.processes)
         self.faces = np.asarray(self.faces)
@@ -310,7 +315,7 @@ if __name__ == "__main__":
                         help='Event names to measure.')
 
     args = parser.parse_args()
-    rays = np.array([23, 15])
+    rays = np.array([15])
 
     if args.write_path is not None:
         write_path = args.write_path
