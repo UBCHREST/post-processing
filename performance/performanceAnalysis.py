@@ -39,20 +39,22 @@ class PerformanceAnalysis:
     # Do curve fitting of the data for performance modelling purposes.
     @staticmethod
     def ray_recombination_function(d, p, c, r, alpha, beta, f, g):
-        return r * ((c / p) ** ((d + 1) / d)) * f + alpha * np.log2(p) + beta + r * (c / p) * (p ** (1 / d)) * g
+        return r * ((c / p) ** ((d + 1) / d)) * f + alpha * np.log2(p) + r * (c ** ((d - 1) / d)) * (
+                p ** (1 / d)) * 2 * beta + r * ((c / p) ** ((d - 1) / d)) * (p ** (1 / d)) * g
 
     @staticmethod
-    def segment_evaluation_function(d, p, c, r, alpha, f, g):
+    def segment_evaluation_function(d, p, c, r, alpha, beta, f, g):
         d = 1
         return r * ((c / p) ** ((d + 1) / d)) * f
 
-    # @staticmethod
-    # def communication_function(p, alpha):
-    #     return alpha * np.log2(p) + n * beta
+    @staticmethod
+    def communication_function(d, p, c, r, alpha, beta, f, g):
+        return alpha * np.log2(p) + r * (c ** ((d - 1) / d)) * (
+                p ** (1 / d)) * 2 * beta
 
     @staticmethod
-    def ray_collapse_function(d, p, r, c, g):
-        return r * (c / p) * (p ** (1 / d)) * g
+    def ray_collapse_function(d, p, c, r, alpha, beta, f, g):
+        return r * ((c / p) ** ((d - 1) / d)) * (p ** (1 / d)) * g
 
     # For communication cost models:
     # beta : bandwidth cost of the network
@@ -111,7 +113,7 @@ class PerformanceAnalysis:
 
     def load_csv_files(self):
         # Create arrays which the parsed information will be stored inside: Whatever information is desired
-        self.times = np.zeros([len(self.events) + 1, len(self.rays), len(self.processes), len(self.faces)])
+        self.times = np.zeros([len(self.events), len(self.rays), len(self.processes), len(self.faces)])
         # Iterate through the arrays to get information out of the files
         for r in range(len(self.rays)):
             for p in range(len(self.processes)):
@@ -134,18 +136,24 @@ class PerformanceAnalysis:
                                     self.times[e, r, p, f] = data[i][
                                         2]  # If it is, then write the value in column 4 of that line
 
-                        self.times[len(self.events), r, p, f] = np.sum(self.times[:, r, p, f])
-                        np.append(self.events, "Total")
-
-                        for e in range(len(self.events)):
                             # If the time is never written then the filter code then don't try to plot it
                             if self.times[e, r, p, f] == 0:
                                 self.times[e, r, p, f] = float("nan")
 
+        # Calculate the sum over the 'e' dimension
+        sum_over_e = np.sum(self.times, axis=0)
+
+        # Expand the dimensions of sum_over_e to match self.times
+        # Here we assume that self.times has 4 dimensions, and 'e' corresponds to the 0th dimension
+        sum_over_e = sum_over_e[np.newaxis, :, :, :]
+
+        # Concatenate sum_over_e with self.times along the 'e' dimension
+        self.times = np.concatenate((self.times, sum_over_e), axis=0)
 
         self.processes = np.asarray(self.processes)
         self.faces = np.asarray(self.faces)
         self.rays = np.asarray(self.rays)
+        self.events = np.append(self.events, "Total")
 
     # Set bounds for the parameters (all non-negative)
     # param_bounds = ([0, -np.inf, 0, -np.inf, 0], [np.inf, np.inf, np.inf, np.inf, np.inf])
@@ -298,26 +306,43 @@ class PerformanceAnalysis:
     def plot_time(self):
         # Initialization Strong scaling analysis
         plt.figure(figsize=(6, 4), num=4)
-        # plt.title("Solve Strong Scaling" + dims, pad=1)
+        # Constant parameters
+        d = 1
+        c = 50000
+        r = 30
+
         for e in range(len(self.events)):
-            for n in range(len(rays)):
+            for n in range(len(self.rays)):
                 for i in range(len(self.faces)):
                     mask = np.isfinite(self.times[e, n, :, i])
-                    x = self.processes
-                    y = self.times[e, n, :, i]
-                    plt.loglog(x[mask], y[mask], linewidth=1, marker=self.colorarray[i],
-                               c="black", markersize=4)
+                    x = self.processes[mask]
+                    y = self.times[e, n, mask, i]
+
+                    # define the initial parameter guess for alpha, beta, f, g
+                    init_guess = [1, 1, 1, 1]
+
+                    # use curve_fit function to fit data
+                    # the function ray_recombination_function should have two arguments: the x values and the parameters to be fitted
+                    params_opt, params_cov = curve_fit(
+                        lambda x, alpha, beta, f, g: self.ray_recombination_function(d, x, c, r, alpha, beta, f, g),
+                        x, y, p0=init_guess)
+
+                    # generate y-values based on the fit
+                    y_fit = self.ray_recombination_function(d, x, c, r, *params_opt)
+
+                    plt.loglog(x, y, linewidth=1, marker=self.colorarray[i], c="black", markersize=4)
+                    # plot fitted curve with a different color or line style
+                    plt.loglog(x, y_fit, '--')
+
         plt.yticks(fontsize=10)
         plt.xticks(fontsize=10)
         plt.xlabel(r'MPI Processes', fontsize=10)
         plt.ylabel(r'Speedup', fontsize=10)
-        # labels = dtheta
-        # labels = np.append(labels, faces)
-        # plt.legend(["2D"], loc="upper left")  # , "3D"
-        # plt.legend()
+
         if not os.path.exists(self.write_path + "/figures"):
             os.makedirs(self.write_path + "/figures")
-        plt.savefig(self.write_path + "/figures/" + self.name + str(self.events[e]) + '_strong_scaling.png',
+
+        plt.savefig(self.write_path + "/figures/" + self.name + str(self.events[e]) + '_times.png',
                     dpi=1500, bbox_inches='tight')
         plt.show()
 
