@@ -46,9 +46,9 @@ class PerformanceAnalysis:
         d = 1
         return r * ((c / p) ** ((d + 1) / d)) * f
 
-    @staticmethod
-    def communication_function(p, alpha):
-        return alpha * np.log2(p) + n * beta
+    # @staticmethod
+    # def communication_function(p, alpha):
+    #     return alpha * np.log2(p) + n * beta
 
     @staticmethod
     def ray_collapse_function(d, p, r, c, g):
@@ -295,6 +295,32 @@ class PerformanceAnalysis:
                         dpi=1500, bbox_inches='tight')
             plt.show()
 
+    def plot_time(self):
+        # Initialization Strong scaling analysis
+        plt.figure(figsize=(6, 4), num=4)
+        # plt.title("Solve Strong Scaling" + dims, pad=1)
+        for e in range(len(self.events)):
+            for n in range(len(rays)):
+                for i in range(len(self.faces)):
+                    mask = np.isfinite(self.times[e, n, :, i])
+                    x = self.processes
+                    y = self.times[e, n, :, i]
+                    plt.loglog(x[mask], y[mask], linewidth=1, marker=self.colorarray[i],
+                               c="black", markersize=4)
+        plt.yticks(fontsize=10)
+        plt.xticks(fontsize=10)
+        plt.xlabel(r'MPI Processes', fontsize=10)
+        plt.ylabel(r'Speedup', fontsize=10)
+        # labels = dtheta
+        # labels = np.append(labels, faces)
+        # plt.legend(["2D"], loc="upper left")  # , "3D"
+        # plt.legend()
+        if not os.path.exists(self.write_path + "/figures"):
+            os.makedirs(self.write_path + "/figures")
+        plt.savefig(self.write_path + "/figures/" + self.name + str(self.events[e]) + '_strong_scaling.png',
+                    dpi=1500, bbox_inches='tight')
+        plt.show()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -314,64 +340,65 @@ if __name__ == "__main__":
     parser.add_argument('--write_to', dest='write_path', type=str, required=False,
                         help='Event names to measure.')
 
-    args = parser.parse_args()
-    rays = np.array([15])
+    # args = parser.parse_args()
+    # rays = np.array([15])
+    #
+    # if args.write_path is not None:
+    #     write_path = args.write_path
+    # else:
+    #     write_path = args.base_path
+    #
+    # scaling_data = PerformanceAnalysis(args.base_path, args.name, args.processes,
+    #                                    args.problems, args.cell_size, rays, args.events, write_path)
+    # scaling_data.load_csv_files()
+    # # scaling_data.plot_performance_contour(0)
+    # # scaling_data.plot_strong_scaling(None)
+    # # scaling_data.plot_weak_scaling(0, 20.0)
+    # # scaling_data.plot_static_scaling()
+    # scaling_data.plot_time()
 
-    if args.write_path is not None:
-        write_path = args.write_path
-    else:
-        write_path = args.base_path
+    import numpy as np
+    import matplotlib.pyplot as plt
 
-    scaling_data = PerformanceAnalysis(args.base_path, args.name, args.processes,
-                                       args.problems, args.cell_size, rays, args.events, write_path)
-    scaling_data.load_csv_files()
-    # scaling_data.plot_performance_contour(0)
-    scaling_data.plot_strong_scaling(None)
-    # scaling_data.plot_weak_scaling(0, 20.0)
-    # scaling_data.plot_static_scaling()
+    plt.rcParams["font.family"] = "Noto Serif CJK JP"
 
-    # import numpy as np
-    # import matplotlib.pyplot as plt
-    #
-    # plt.rcParams["font.family"] = "Noto Serif CJK JP"
-    #
-    # import numpy as np
-    # import matplotlib.pyplot as plt
-    #
-    # # Define the parameters
-    # alpha = [10.0E-6, 2.0E-6]  # Communication latency
-    # beta = [1/600E9, 1/21.E9]  # Memory bandwidth cost
-    # linestyles = ['-', '--', '-.']
-    # d = 3  # Dimensions
-    # p = np.logspace(1, 7, 400)  # MPI processes
-    #
-    # plt.figure(figsize=(8, 6))
-    # for i in range(len(alpha)):
-    #     # Compute the discretization N
-    #     N = alpha[i] * np.log2(p) * (p ** (1 / d) - 1) / (p ** (1 / d) * (7 * beta[i]) - 5 * beta[i])
-    #
-    #     # Create the plot
-    #     plt.loglog(p, N, color='k', linestyle=linestyles[i])
-    # # plt.fill_between(p, 0, N, alpha=0, color='black')  # Fill the area under the curve
-    #
-    # # # Add horizontal lines at y=1E6 and y=1E4
-    # # plt.axhline(y=1E6, color='k', linestyle='--')
-    # # plt.axhline(y=1E4, color='k', linestyle='--')
-    #
-    # # Add labels and title
-    # plt.xlabel('MPI Processes', fontsize=12)
-    # plt.ylabel('N', fontsize=12)
-    # # plt.ylim([0, 1E7])
-    #
-    # # Add annotations
-    # # plt.annotate('Sweeping Method', xy=(0.25, 0.75), xycoords='axes fraction', ha='center', color='black')
-    # # plt.annotate('Ray Recombination Method', xy=(0.75, 0.25), xycoords='axes fraction', ha='center', color='black')
-    #
-    # plt.legend(["Nvidia GPU Cluster", "Intel Xeon Cluster", "CPU2"], frameon=False)
-    # plt.grid(True)
-    # savePath = "/home/owen/CLionProjects/ParallelRadiationJCP/figures/"
-    # plt.savefig(savePath + 'PerformanceTradeoffPoint', dpi=1000, bbox_inches='tight')
-    # plt.show()
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    # Define the parameters
+    alpha = [10.0E-6, 2.0E-6]  # Communication latency
+    beta = [1/600E9, 1/21.E9]  # Memory bandwidth cost
+    linestyles = ['-', '--', '-.']
+    d = 3  # Dimensions
+    p = np.logspace(1, 7, 400)  # MPI processes
+
+    plt.figure(figsize=(8, 6))
+    for i in range(len(alpha)):
+        # Compute the discretization N
+        N = alpha[i] * np.log2(p) * (p ** (1 / d) - 1) / (p ** (1 / d) * (7 * beta[i]) - 5 * beta[i])
+
+        # Create the plot
+        plt.loglog(p, N, color='k', linestyle=linestyles[i])
+    # plt.fill_between(p, 0, N, alpha=0, color='black')  # Fill the area under the curve
+
+    # # Add horizontal lines at y=1E6 and y=1E4
+    # plt.axhline(y=1E6, color='k', linestyle='--')
+    # plt.axhline(y=1E4, color='k', linestyle='--')
+
+    # Add labels and title
+    plt.xlabel('MPI Processes', fontsize=12)
+    plt.ylabel('N', fontsize=12)
+    # plt.ylim([0, 1E7])
+
+    # Add annotations
+    # plt.annotate('Sweeping Method', xy=(0.25, 0.75), xycoords='axes fraction', ha='center', color='black')
+    # plt.annotate('Ray Recombination Method', xy=(0.75, 0.25), xycoords='axes fraction', ha='center', color='black')
+
+    plt.legend(["Nvidia GPU Cluster", "Intel Xeon Cluster", "CPU2"], frameon=False)
+    plt.grid(True)
+    savePath = "/home/owen/CLionProjects/ParallelRadiationJCP/figures/"
+    plt.savefig(savePath + 'PerformanceTradeoffPoint', dpi=1000, bbox_inches='tight')
+    plt.show()
 
 # --path /home/owen/ablateInputs/ScalingTests/csvFiles --name volumetricSFScaling --processes 1 2 4 8 16 32 64 128 256 512 1024 2048 4096 --problems [105,15] [149,21] [297,42] --dof 1575 3129 12474 --events Radiation::Initialize Radiation::EvaluateGains --write_to /home/owen/CLionProjects/ParallelRadiationJCP
 # --path /home/owen/1d_scaling --name irradiation --processes 36 72 144 288 576 1152 2304 --problems [50000] --dof 50000 --events Radiation::EvaluateGains::Communication Radiation::EvaluateGains::Recombination Radiation::EvaluateGains::LocalSegmentIntegration --write_to /home/owen/CLionProjects/ParallelRadiationJCP
