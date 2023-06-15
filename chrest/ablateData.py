@@ -97,12 +97,17 @@ class AblateData:
     computes the cell center for each cell [c, d]
     """
 
-    def compute_cell_centers(self, dimensions):
+    def compute_cell_centers(self, dimensions=-1):
         # create a new np array based upon the dim
         number_cells = self.cells.shape[0]
 
         vertices = self.vertices[:]
-        vertices_dim = vertices.shape[1]
+        vertices_dim = 1
+        if len(vertices.shape) > 1:
+            vertices_dim = vertices.shape[1]
+
+        if dimensions < 0:
+            dimensions = vertices_dim
 
         coords = np.zeros((number_cells, dimensions))
 
@@ -123,7 +128,7 @@ class AblateData:
     gets the specified field and the number of components
     """
 
-    def get_field(self, field_name, interwal, component_names=None):
+    def get_field(self, field_name, interwal=0, component_names=None):
         # create a dictionary of times/data
         data = []
         components = 0
@@ -195,7 +200,7 @@ class AblateData:
             self.timeitervals.append(vector[self.numintervals * n:])
             self.numintervals += 1
         # if remaining_elements == 0:
-        #     self.numintervals += 1 
+        #     self.numintervals += 1
         # return sub_vectors
     
 
@@ -312,8 +317,8 @@ if __name__ == "__main__":
     parser.add_argument('--filerange', dest='filerange', type=float,
                         help="The first and last files that the user want to process in the directory default is: [0 -1]",
                         nargs='+')
-    
-    
+
+
 
     args = parser.parse_args()
 
@@ -341,8 +346,8 @@ if __name__ == "__main__":
     if args.filerange is None:
         filerange=[0,len(ablate_data.times)]
     else:
-        filerange=args.filerange    
-        
+        filerange=args.filerange
+
     if args.batchsize is not None:
         if len(ablate_data.times) > args.batchsize:
             ablate_data.sort_time(args.batchsize,filerange)
@@ -350,7 +355,7 @@ if __name__ == "__main__":
         else:
             ablate_data.sort_time(len(ablate_data.times),filerange)
             print("The code processes " + str(len(ablate_data.times)) + " files at a time.")
-    
+
     for i in range(0,ablate_data.numintervals):
         # map the ablate data to chrest
         ablate_data.map_to_chrest_data(chrest_data, field_mappings,i, component_select_names, args.max_distance)
