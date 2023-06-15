@@ -1,4 +1,3 @@
-
 import argparse
 import pathlib
 import sys
@@ -309,14 +308,14 @@ class ChrestData:
 
         # write the xdmf file
         xdfm.write_to_file(str(path_template) + ".xdmf")
-    
-    def savepart(self, path_template,i,intlen):
+
+    def savepart(self, path_template, i, intlen):
         # generate an xdfm object at the same time
         xdfm = XdmfGenerator()
 
         # march over the files
         for index in range(len(self.times)):
-            fileindex=index+i*intlen
+            fileindex = index + i * intlen
             # Name the file
             hdf5_path = str(path_template) + f".{fileindex:05d}.hdf5"
 
@@ -347,7 +346,7 @@ class ChrestData:
             xdfm.append_chrest_hdf5(hdf5_path)
 
         # write the xdmf file
-        xdfm.write_to_file(str(path_template) + ".xdmf")    
+        xdfm.write_to_file(str(path_template) + ".xdmf")
 
     """
     Compute the mean and rms of a field and return in new chrest data
