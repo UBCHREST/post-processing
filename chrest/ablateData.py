@@ -8,7 +8,8 @@ import h5py
 from chrestData import ChrestData
 from supportPaths import expand_path
 from scipy.spatial import KDTree
-
+from scipy.interpolate import griddata
+import interpolate 
 
 class AblateData:
     """
@@ -24,7 +25,7 @@ class AblateData:
             self.files = expand_path(files)
         else:
             self.files = files
-
+        
         # store the files based upon time
         self.files_per_time = dict()
         self.timeitervals = []
@@ -58,6 +59,8 @@ class AblateData:
         self.times = list(self.files_per_time.keys())
         self.times.sort()
         self.timeitervals.append(self.times.copy())
+        
+        self.interpolate=False
 
         # Load in any available metadata based upon the file structure
         self.metadata['path'] = str(self.files[0])
@@ -69,7 +72,7 @@ class AblateData:
                 self.metadata['restart.rst'] = restart_file.read_text()
         except (Exception,):
             print("Could not locate restart.rst for metadata")
-
+            
         # load in the restart file
         try:
             simulation_directory = self.files[0].parent.parent
@@ -96,17 +99,12 @@ class AblateData:
     computes the cell center for each cell [c, d]
     """
 
-    def compute_cell_centers(self, dimensions=-1):
+    def compute_cell_centers(self, dimensions):
         # create a new np array based upon the dim
         number_cells = self.cells.shape[0]
 
         vertices = self.vertices[:]
-        vertices_dim = 1
-        if len(vertices.shape) > 1:
-            vertices_dim = vertices.shape[1]
-
-        if dimensions < 0:
-            dimensions = vertices_dim
+        vertices_dim = vertices.shape[1]
 
         coords = np.zeros((number_cells, dimensions))
 
@@ -127,7 +125,7 @@ class AblateData:
     gets the specified field and the number of components
     """
 
-    def get_field(self, field_name, interwal=0, component_names=None):
+    def get_field(self, field_name, interwal, component_names=None):
         # create a dictionary of times/data
         data = []
         components = 0
@@ -135,79 +133,80 @@ class AblateData:
         # march over the files
         for t in self.timeitervals[interwal]:
             # for i in range(start,stop):
-            # Load in the file
-            with h5py.File(self.files_per_time[t], 'r') as hdf5:
-                try:
-                    # Check each of the cell fields
-                    hdf5_field = hdf5['cell_fields'][field_name]
-
-                    if len(hdf5_field[0, :].shape) > 1:
-                        components = hdf5_field[0, :].shape[1]
-                        # check for component names
-                        all_component_names = [""] * components
-
-                        for i in range(components):
-                            if ('componentName' + str(i)) in hdf5_field.attrs:
-                                all_component_names[i] = hdf5_field.attrs['componentName' + str(i)].decode("utf-8")
-
-                    # load in the specified field name, but check if we should down select components
-                    if component_names is None:
-                        hdf_field_data = hdf5_field[0, :]
-                        data.append(hdf_field_data)
-                    else:
-                        # get the indexes
-                        indexes = []
-                        for component_name in component_names:
-                            try:
-                                indexes.append(all_component_names.index(component_name))
-                            except ValueError as error:
-                                raise Exception("Cannot locate " + component_name + " in field " + field_name + ". ",
-                                                error)
-
-                        # sort the index list in order
-                        index_name_list = zip(indexes, component_names)
-                        index_name_list = sorted(index_name_list)
-                        indexes, component_names = zip(*index_name_list)
-
-                        # down select only the components that were asked for
-                        hdf_field_data = hdf5_field[0, ..., list(indexes)]
-                        data.append(hdf_field_data)
-                        all_component_names = list(component_names)
-                        components = len(all_component_names)
-                except Exception as e:
-                    raise Exception(
-                        "Unable to open field " + field_name + "." + str(e))
-            hdf5.close
-
+                # Load in the file
+                with h5py.File(self.files_per_time[t], 'r') as hdf5:
+                    try:
+                        # Check each of the cell fields
+                        hdf5_field = hdf5['cell_fields'][field_name]
+    
+                        if len(hdf5_field[0, :].shape) > 1:
+                            components = hdf5_field[0, :].shape[1]
+                            # check for component names
+                            all_component_names = [""] * components
+    
+                            for i in range(components):
+                                if ('componentName' + str(i)) in hdf5_field.attrs:
+                                    all_component_names[i] = hdf5_field.attrs['componentName' + str(i)].decode("utf-8")
+    
+                        # load in the specified field name, but check if we should down select components
+                        if component_names is None:
+                            hdf_field_data = hdf5_field[0, :]
+                            data.append(hdf_field_data)
+                        else:
+                            # get the indexes
+                            indexes = []
+                            for component_name in component_names:
+                                try:
+                                    indexes.append(all_component_names.index(component_name))
+                                except ValueError as error:
+                                    raise Exception("Cannot locate " + component_name + " in field " + field_name + ". ",
+                                                    error)
+    
+                            # sort the index list in order
+                            index_name_list = zip(indexes, component_names)
+                            index_name_list = sorted(index_name_list)
+                            indexes, component_names = zip(*index_name_list)
+    
+                            # down select only the components that were asked for
+                            hdf_field_data = hdf5_field[0, ..., list(indexes)]
+                            data.append(hdf_field_data)
+                            all_component_names = list(component_names)
+                            components = len(all_component_names)
+                    except Exception as e:
+                        raise Exception(
+                            "Unable to open field " + field_name + "." + str(e))
+                hdf5.close
+                
         return np.stack(data), components, all_component_names
-
-    def sort_time(self, inputn, filerange):
-        if int(filerange[1]) != -1:
-            vector = self.times[int(filerange[0]):int(filerange[1]) + 1]
-        elif int(filerange[1]) != 0:
-            vector = self.times[int(filerange[0] - 1):int(filerange[1])]
+    
+    def sort_time(self, inputn,filerange):
+        if int(filerange[1])!=-1:
+            vector = self.times[int(filerange[0]):int(filerange[1])+1]
+        elif int(filerange[1])!=0:
+            vector = self.times[int(filerange[0]-1):int(filerange[1])]
         else:
             vector = self.times
-        n = int(inputn)
-        self.numintervals = (len(vector) // n)  # Calculate the number of sub-vectors
-
-        self.timeitervals = [vector[i:i + n] for i in range(0, self.numintervals * n, n)]
-
+        n=int(inputn)
+        self.numintervals = (len(vector) // n)    # Calculate the number of sub-vectors
+    
+        self.timeitervals = [vector[i:i+n] for i in range(0, self.numintervals * n, n)]
+    
         # If there are any remaining elements, create a sub-vector with the leftover elements
         remaining_elements = len(vector) % n
         if remaining_elements != 0:
             self.timeitervals.append(vector[self.numintervals * n:])
             self.numintervals += 1
         # if remaining_elements == 0:
-        #     self.numintervals += 1
+        #     self.numintervals += 1 
         # return sub_vectors
+    
 
     """
     converts the supplied fields ablate object to chrest data object.
     """
-
-    def map_to_chrest_data(self, chrest_data, field_mapping, iteration, field_select_components=dict(),
-                           max_distance=sys.float_info.max):
+        
+    def map_to_chrest_data(self, chrest_data, field_mapping,iteration, field_select_components=dict(),
+                            max_distance=sys.float_info.max):
         # get the cell centers for this mesh
         cell_centers = self.compute_cell_centers(chrest_data.dimensions)
 
@@ -224,7 +223,7 @@ class AblateData:
         components = []
 
         # create the new field in the chrest data
-
+        
         for ablate_field in ablate_fields:
             chrest_field = field_mapping[ablate_field]
 
@@ -232,7 +231,7 @@ class AblateData:
             component_select_names = field_select_components.get(ablate_field)
 
             # get the field from ablate
-            ablate_field_data_tmp, components_tmp, component_names = self.get_field(ablate_field, iteration,
+            ablate_field_data_tmp, components_tmp, component_names = self.get_field(ablate_field,iteration,
                                                                                     component_select_names)
 
             ablate_field_data.append(ablate_field_data_tmp)
@@ -247,30 +246,54 @@ class AblateData:
 
         # reshape to get a single list order back
         chrest_cell_centers = chrest_coords.reshape((chrest_cell_number, chrest_data.dimensions))
-
+        
         # now search and copy over data
         tree = KDTree(cell_centers)
         dist, points = tree.query(chrest_cell_centers, workers=-1)
-
+        
+        #interpolate if you are closer than the max _distance
+        mask = dist < max_distance
+        
+        masked_chrest_cell_centers=chrest_cell_centers[mask]
+        filename='chrestcoord.csv'
+        import csv
+        with open(filename, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerows(chrest_cell_centers)
+        # vtx, wts = interpolate.calcweight3D(cell_centers, chrest_cell_centers)
+        vtx, wts = interpolate.calcweight3D(cell_centers, masked_chrest_cell_centers)
+        
         # march over each field
         for f in range(len(ablate_field_data)):
-            # get in the correct order
-            ablate_field_in_chrest_order = ablate_field_data[f][:, points]
-
-            setToZero = np.where(dist > max_distance)
-
-            ablate_field_in_chrest_order[:, setToZero] = 0.0
+          
+            if self.interpolate:
+                #interpolation (calculate or use precomputed weights)
+                #ps. only do interpolation on points that are ~inside of the domain
+                #currently ONLY 3D interpolation is supported
+                fielddata=np.transpose(ablate_field_data[f][:])
+                part_ablate_field_in_chrest_order = np.reshape(interpolate.interpolate3D(vtx,wts,fielddata),(1,vtx.shape[0]))
+                ablate_field_in_chrest_order = np.zeros_like(mask)
+                ablate_field_in_chrest_order[mask] = part_ablate_field_in_chrest_order[0]
+                # ablate_field_in_chrest_order = part_ablate_field_in_chrest_order
+            else:  
+                # closest node 
+                ablate_field_in_chrest_order = ablate_field_data[f][:, points]
+                setToZero = np.where(dist > max_distance)
+                ablate_field_in_chrest_order[:, setToZero] = 0.0                  
+            
+            # using scipy built in interpolator, impractical for normal size grids, takes really long...
+            # ablate_field_in_chrest_order = griddata((cell_centers[:,0],cell_centers[:,1],cell_centers[:,2]), ablate_field_data[f].T, (chrest_cell_centers), method='linear')
 
             # reshape it back to k,j,i
             ablate_field_in_chrest_order = ablate_field_in_chrest_order.reshape(
                 chrest_field_data[f].shape
             )
-
+            
             # copy over the data
             chrest_field_data[f][:] = ablate_field_in_chrest_order[:]
 
         # copy over the metadata
-        chrest_data.metadata = self.metadata
+        chrest_data.metadata = self.metadata        
 
 
 # parse based upon the supplied inputs
@@ -308,13 +331,19 @@ if __name__ == "__main__":
 
     parser.add_argument('--max_distance', dest='max_distance', type=float,
                         help="The max distance to search for a point in ablate", default=sys.float_info.max)
-
+    
     parser.add_argument('--batchsize', dest='batchsize', type=float,
                         help="The number of files to be loaded in at once")
-
+    
     parser.add_argument('--filerange', dest='filerange', type=float,
                         help="The first and last files that the user want to process in the directory default is: [0 -1]",
                         nargs='+')
+    
+    parser.add_argument('--interpolate', dest='interpolate', type=bool,
+                        help="Whether you would like to interpolate or not. Currently only available for 3D.",
+                        default=False)
+    
+    
 
     args = parser.parse_args()
 
@@ -334,32 +363,39 @@ if __name__ == "__main__":
         # check to see if there are select components
         if len(field_mapping_list) > 2:
             component_select_names[field_mapping_list[0]] = field_mapping_list[2].split(',')
-
+            
+    if args.interpolate is not None:
+        ablate_data.interpolate=args.interpolate
+        
     # create a chrest data
     chrest_data = ChrestData()
     chrest_data.setup_new_grid(args.start, args.end, args.delta)
-
+    
     if args.filerange is None:
-        filerange = [0, len(ablate_data.times)]
+        filerange=[0,len(ablate_data.times)]
     else:
-        filerange = args.filerange
-
+        filerange=args.filerange    
+        
     if args.batchsize is not None:
         if len(ablate_data.times) > args.batchsize:
-            ablate_data.sort_time(args.batchsize, filerange)
+            ablate_data.sort_time(args.batchsize,filerange)
             print("The code processes " + str(args.batchsize) + " files at a time.")
         else:
-            ablate_data.sort_time(len(ablate_data.times), filerange)
+            ablate_data.sort_time(len(ablate_data.times),filerange)
             print("The code processes " + str(len(ablate_data.times)) + " files at a time.")
-
-    for i in range(0, ablate_data.numintervals):
+    else:
+        ablate_data.sort_time(len(ablate_data.times),filerange)
+        
+    import time
+    for i in range(0,ablate_data.numintervals):
         # map the ablate data to chrest
-        ablate_data.map_to_chrest_data(chrest_data, field_mappings, i, component_select_names, args.max_distance)
-
+        start_time = time.time()
+        ablate_data.map_to_chrest_data(chrest_data, field_mappings,i, component_select_names, args.max_distance)
+        print("--- %s seconds ---" % (time.time() - start_time))
         # write the new file without wild card
         chrest_data_path_base = args.file.parent / (str(args.file.stem).replace("*", "") + ".chrest")
         chrest_data_path_base.mkdir(parents=True, exist_ok=True)
         chrest_data_path_base = chrest_data_path_base / (str(args.file.stem).replace("*", "") + ".chrest")
-
+    
         # Save the result data
-        chrest_data.savepart(chrest_data_path_base, i, len(ablate_data.timeitervals[0]))
+        chrest_data.savepart(chrest_data_path_base,i,len(ablate_data.timeitervals[0]))
