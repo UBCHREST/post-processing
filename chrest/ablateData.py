@@ -255,13 +255,16 @@ class AblateData:
         mask = dist < max_distance
         
         masked_chrest_cell_centers=chrest_cell_centers[mask]
-        filename='chrestcoord.csv'
+        filename='chrestcoord_'+str(len(masked_chrest_cell_centers))+'.csv'
         import csv
         with open(filename, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerows(chrest_cell_centers)
         # vtx, wts = interpolate.calcweight3D(cell_centers, chrest_cell_centers)
         vtx, wts = interpolate.calcweight3D(cell_centers, masked_chrest_cell_centers)
+        
+        if np.size(cell_centers,1)!=3:
+            print('Warning! The code has not been tested for 2D grids...')
         
         # march over each field
         for f in range(len(ablate_field_data)):
