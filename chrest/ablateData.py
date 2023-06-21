@@ -1,6 +1,7 @@
 import argparse
 import pathlib
-import sys
+import sys, os
+import csv
 
 import numpy as np
 import h5py
@@ -208,8 +209,24 @@ class AblateData:
     def map_to_chrest_data(self, chrest_data, field_mapping,iteration, field_select_components=dict(),
                             max_distance=sys.float_info.max):
         # get the cell centers for this mesh
-        cell_centers = self.compute_cell_centers(chrest_data.dimensions)
-
+        # cell_centers = self.compute_cell_centers(chrest_data.dimensions)
+        
+        filename_coordinate = 'ablatecoords_'+str(len(self.vertices))+'_vert.csv'
+        # filename2 = 'verticies_ablate_'+str(len(xyz))+'chrest_'+str(len(uvw))+'.csv'
+        filepath = self.files[0].parent / filename_coordinate
+        
+        if not filepath.exists():        
+            cell_centers = self.compute_cell_centers(chrest_data.dimensions)
+            with open(filepath, 'w', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerows(cell_centers)
+            print(f'Saved {filename_coordinate} successfully.')
+        else:
+            with open(filepath, 'r') as csvfile:
+                reader = csv.reader(csvfile)
+                cell_centers = np.array([[float(value) for value in row] for row in reader])
+            print(f'Read {filename_coordinate} successfully.')
+            
         # add the ablate times to chrest
         # chrest_data.times = self.times.copy()
         chrest_data.times = self.timeitervals[iteration].copy()
@@ -223,7 +240,7 @@ class AblateData:
         components = []
 
         # create the new field in the chrest data
-        
+
         for ablate_field in ablate_fields:
             chrest_field = field_mapping[ablate_field]
 
@@ -247,21 +264,20 @@ class AblateData:
         # reshape to get a single list order back
         chrest_cell_centers = chrest_coords.reshape((chrest_cell_number, chrest_data.dimensions))
         
+
         # now search and copy over data
         tree = KDTree(cell_centers)
         dist, points = tree.query(chrest_cell_centers, workers=-1)
         
         #interpolate if you are closer than the max _distance
-        mask = dist < max_distance
+        # mask = dist < max_distance
         
-        masked_chrest_cell_centers=chrest_cell_centers[mask]
-        filename='chrestcoord_'+str(len(masked_chrest_cell_centers))+'.csv'
-        import csv
-        with open(filename, 'w', newline='') as csvfile:
-            writer = csv.writer(csvfile)
-            writer.writerows(chrest_cell_centers)
+        # masked_chrest_cell_centers=chrest_cell_centers[mask]            
+        # self.interpolate = False
+
         # vtx, wts = interpolate.calcweight3D(cell_centers, chrest_cell_centers)
-        vtx, wts = interpolate.calcweight3D(cell_centers, masked_chrest_cell_centers)
+        if self.interpolate:
+            vtx, wts = interpolate.calcweight3D(cell_centers, chrest_cell_centers,self.files[0].parent)
         
         if np.size(cell_centers,1)!=3:
             print('Warning! The code has not been tested for 2D grids...')
@@ -273,16 +289,26 @@ class AblateData:
                 #interpolation (calculate or use precomputed weights)
                 #ps. only do interpolation on points that are ~inside of the domain
                 #currently ONLY 3D interpolation is supported
-                fielddata=np.transpose(ablate_field_data[f][:])
-                part_ablate_field_in_chrest_order = np.reshape(interpolate.interpolate3D(vtx,wts,fielddata),(1,vtx.shape[0]))
-                ablate_field_in_chrest_order = np.zeros_like(mask)
-                ablate_field_in_chrest_order[mask] = part_ablate_field_in_chrest_order[0]
-                # ablate_field_in_chrest_order = part_ablate_field_in_chrest_order
+                ablate_field_in_chrest_order = np.zeros_like(ablate_field_data[f][:, points])
+                if len(ablate_field_data[f].shape)>2:
+                    for ii in range(ablate_field_data[f].shape[2]):
+                        
+                        # fielddata=np.transpose(ablate_field_data[f][:][ii])
+                        fielddata=ablate_field_data[f][0]
+                        # part_ablate_field_in_chrest_order = np.reshape(interpolate.interpolate3D(vtx,wts,fielddata),(1,vtx.shape[0]))
+                        # ablate_field_in_chrest_order = np.zeros_like(mask)
+                        # ablate_field_in_chrest_order[mask] = part_ablate_field_in_chrest_order[0]
+                        ablate_field_in_chrest_order[:,:,ii] = np.reshape(interpolate.interpolate3D(vtx,wts,fielddata[:,0],points),(1,vtx.shape[0]))
+                else:
+                    fielddata=np.transpose(ablate_field_data[f][:])
+                    ablate_field_in_chrest_order = np.reshape(interpolate.interpolate3D(vtx,wts,fielddata,points),(1,vtx.shape[0]))
             else:  
+                a=1
                 # closest node 
                 ablate_field_in_chrest_order = ablate_field_data[f][:, points]
-                setToZero = np.where(dist > max_distance)
-                ablate_field_in_chrest_order[:, setToZero] = 0.0                  
+            
+            setToZero = np.where(dist > max_distance)
+            ablate_field_in_chrest_order[:, setToZero] = 0.0                  
             
             # using scipy built in interpolator, impractical for normal size grids, takes really long...
             # ablate_field_in_chrest_order = griddata((cell_centers[:,0],cell_centers[:,1],cell_centers[:,2]), ablate_field_data[f].T, (chrest_cell_centers), method='linear')
@@ -392,9 +418,11 @@ if __name__ == "__main__":
     import time
     for i in range(0,ablate_data.numintervals):
         # map the ablate data to chrest
+        
         start_time = time.time()
         ablate_data.map_to_chrest_data(chrest_data, field_mappings,i, component_select_names, args.max_distance)
         print("--- %s seconds ---" % (time.time() - start_time))
+        
         # write the new file without wild card
         chrest_data_path_base = args.file.parent / (str(args.file.stem).replace("*", "") + ".chrest")
         chrest_data_path_base.mkdir(parents=True, exist_ok=True)
