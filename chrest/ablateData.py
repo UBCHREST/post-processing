@@ -8,6 +8,13 @@ import h5py
 from chrestData import ChrestData
 from supportPaths import expand_path
 from scipy.spatial import KDTree
+from enum import Enum
+
+
+# class syntax
+class FieldType(Enum):
+    CELL = 1
+    VERTEX = 2
 
 
 class AblateData:
@@ -27,6 +34,7 @@ class AblateData:
 
         # store the files based upon time
         self.files_per_time = dict()
+        self.index_per_time = dict()
         self.timeitervals = []
         self.numintervals = 1
         self.times = []
@@ -49,10 +57,11 @@ class AblateData:
                 self.vertices = hdf5["geometry"]["vertices"][:]
 
             # extract the time
-            time = hdf5['time'][0][0]
-            self.times.append(time)
-
-            self.files_per_time[time] = file
+            timeInFile = hdf5['time'][:, 0]
+            for idx, time in enumerate(timeInFile):
+                self.times.append(time)
+                self.files_per_time[time] = file
+                self.index_per_time[time] = idx
 
         # Store the list of times
         self.times = list(self.files_per_time.keys())
@@ -83,13 +92,15 @@ class AblateData:
     Reports the fields from each the file
     """
 
-    def get_fields(self):
+    def get_fields(self, field_type=FieldType.CELL):
         fields_names = []
 
         if len(self.files) > 0:
             with h5py.File(self.files[0], 'r') as hdf5:
-                fields_names.extend(hdf5['cell_fields'].keys())
-
+                if 'cell_fields' in hdf5 and field_type == FieldType.CELL:
+                    fields_names.extend(hdf5['cell_fields'].keys())
+                if 'vertex_fields' in hdf5 and field_type == FieldType.VERTEX:
+                    fields_names.extend(hdf5['vertex_fields'].keys())
         return fields_names
 
     """
@@ -121,7 +132,30 @@ class AblateData:
             # put back
             coords[c, 0:vertices_dim] = cell_center
 
+        # if this is one d, flatten
+        if dimensions == 1:
+            coords = coords[:, 0]
+
         return coords
+
+    """
+    Returns the vertexes in the order used in the mesh
+    """
+
+    def compute_vertexes(self):
+        return self.vertices
+
+    """
+    Returns either the cell centers or vertices 
+    """
+
+    def compute_geometry(self, field_type):
+        if field_type == FieldType.CELL:
+            return self.compute_cell_centers()
+        elif field_type == FieldType.VERTEX:
+            return self.compute_vertexes()
+        else:
+            return None
 
     """
     gets the specified field and the number of components
@@ -139,10 +173,16 @@ class AblateData:
             with h5py.File(self.files_per_time[t], 'r') as hdf5:
                 try:
                     # Check each of the cell fields
-                    hdf5_field = hdf5['cell_fields'][field_name]
+                    if 'cell_fields' in hdf5 and field_name in hdf5['cell_fields']:
+                        hdf5_field = hdf5['cell_fields'][field_name]
+                    elif 'vertex_fields' in hdf5 and field_name in hdf5['vertex_fields']:
+                        hdf5_field = hdf5['vertex_fields'][field_name]
 
-                    if len(hdf5_field[0, :].shape) > 1:
-                        components = hdf5_field[0, :].shape[1]
+                    # if there are multiple times in this file, extract them
+                    time_index = self.index_per_time[t]
+
+                    if len(hdf5_field[time_index, :].shape) > 1:
+                        components = hdf5_field[time_index, :].shape[1]
                         # check for component names
                         all_component_names = [""] * components
 
@@ -152,7 +192,7 @@ class AblateData:
 
                     # load in the specified field name, but check if we should down select components
                     if component_names is None:
-                        hdf_field_data = hdf5_field[0, :]
+                        hdf_field_data = hdf5_field[time_index, :]
                         data.append(hdf_field_data)
                     else:
                         # get the indexes
@@ -170,7 +210,7 @@ class AblateData:
                         indexes, component_names = zip(*index_name_list)
 
                         # down select only the components that were asked for
-                        hdf_field_data = hdf5_field[0, ..., list(indexes)]
+                        hdf_field_data = hdf5_field[time_index, ..., list(indexes)]
                         data.append(hdf_field_data)
                         all_component_names = list(component_names)
                         components = len(all_component_names)
