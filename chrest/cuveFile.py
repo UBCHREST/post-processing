@@ -5,7 +5,7 @@ import sys
 import numpy as np
 import h5py
 
-from chrest.ablateData import AblateData
+from chrest.ablateData import AblateData, FieldType
 from chrestData import ChrestData
 from supportPaths import expand_path
 from scipy.spatial import KDTree
@@ -23,7 +23,18 @@ if __name__ == "__main__":
     # this is some example code for chest file post-processing
     ablate_data = AblateData(args.file)
 
-    fields = ablate_data.get_fields()
+    # check to see if we are converting cell or field type
+    cell_fields = ablate_data.get_fields(FieldType.CELL)
+    vertex_fields = ablate_data.get_fields(FieldType.VERTEX)
+
+    if cell_fields:
+        field_type = FieldType.CELL
+        fields = cell_fields
+    elif vertex_fields:
+        field_type = FieldType.VERTEX
+        fields = vertex_fields
+    else:
+        raise Exception("No fields found in the hdf5 files")
 
     # create an output directory
     information_name = str(args.file.stem).replace("*", "")
@@ -32,12 +43,9 @@ if __name__ == "__main__":
     curve_path_base = curve_path_base / (information_name + "curve")
 
     # make sure that the mesh is 1D
-    cell_centers = ablate_data.compute_cell_centers()
-    if len(cell_centers.shape) != 2 and cell_centers.shape[1] != 1:
+    cell_centers = ablate_data.compute_geometry(field_type)
+    if len(cell_centers.shape) != 1:
         raise Exception("The input data must be 1D to be converted to a curve file")
-
-    # flatten the data
-    cell_centers = cell_centers[:, 0]
 
     # create a new file for each field based upon time
     file_index = 0
