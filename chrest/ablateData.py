@@ -210,7 +210,7 @@ class AblateData:
                             max_distance=sys.float_info.max):
         # get the cell centers for this mesh
         # cell_centers = self.compute_cell_centers(chrest_data.dimensions)
-        
+        gradientfield=[]
         filename_coordinate = 'ablatecoords_'+str(len(self.vertices))+'_vert.csv'
         # filename2 = 'verticies_ablate_'+str(len(xyz))+'chrest_'+str(len(uvw))+'.csv'
         filepath = self.files[0].parent / filename_coordinate
@@ -254,7 +254,44 @@ class AblateData:
             ablate_field_data.append(ablate_field_data_tmp)
             components.append(components_tmp)
             chrest_field_data.append(chrest_data.create_field(chrest_field, components_tmp, component_names)[0])
+            gradientfield.append(0)
+        
+        #Add aditional derivative fields
+        derivative_component=['aux_temperature','aux_velocity']
+        for derfield in derivative_component:
+            chrest_field = field_mapping[derfield]
+            chrest_field ='d'+chrest_field 
+            # check to see if there is a down selection of components
+            component_select_names = field_select_components.get(derfield)
 
+            # get the field from ablate
+            ablate_field_data_tmp, components_tmp, component_names = self.get_field(derfield,iteration,
+                                                                                    component_select_names)
+            if component_names is None:
+                ablate_field_data.append(ablate_field_data_tmp)
+                components.append(3)
+                component_names=[]
+                component_names.append(chrest_field+ '_dx')
+                component_names.append(chrest_field+ '_dy')
+                component_names.append(chrest_field+ '_dz')
+                chrest_field_data.append(chrest_data.create_field(chrest_field, 3, component_names)[0])
+                gradientfield.append(1)
+            else:
+                idx=0
+
+                for compfield in component_names:
+                    ablate_field_data.append(ablate_field_data_tmp[:,:,idx])
+                    components.append(3)
+                    component_names=[]
+                    comfieldname='d'+compfield
+                    component_names.append(comfieldname+ '_dx')
+                    component_names.append(comfieldname+ '_dy')
+                    component_names.append(comfieldname+ '_dz')
+                    chrest_field_data.append(chrest_data.create_field(comfieldname, 3, component_names)[0])
+                    idx+=1
+                    gradientfield.append(1)
+            # gradientfield.append(1)
+        
         # build a list of k, j, i points to iterate over
         chrest_coords = chrest_data.get_coordinates()
 
@@ -273,54 +310,80 @@ class AblateData:
         # mask = dist < max_distance
         
         # masked_chrest_cell_centers=chrest_cell_centers[mask]            
-        # self.interpolate = False
 
         # vtx, wts = interpolate.calcweight3D(cell_centers, chrest_cell_centers)
         if self.interpolate:
-            vtx, wts = interpolate.calcweight3D(cell_centers, chrest_cell_centers,self.files[0].parent)
+            # vtx, wts = interpolate.calc_interpweights_3D(cell_centers, chrest_cell_centers,self.files[0].parent)
+            vtx, wts, Wx, Wy, Wz = interpolate.calc_allweights_3D(cell_centers, chrest_cell_centers,self.files[0].parent)
         
         if np.size(cell_centers,1)!=3:
             print('Warning! The code has not been tested for 2D grids...')
         
         # march over each field
+        idx = 0
         for f in range(len(ablate_field_data)):
-          
-            if self.interpolate:
-                #interpolation (calculate or use precomputed weights)
-                #ps. only do interpolation on points that are ~inside of the domain
-                #currently ONLY 3D interpolation is supported
-                ablate_field_in_chrest_order = np.zeros_like(ablate_field_data[f][:, points])
-                if len(ablate_field_data[f].shape)>2:
-                    for ii in range(ablate_field_data[f].shape[2]):
-                        
-                        # fielddata=np.transpose(ablate_field_data[f][:][ii])
-                        fielddata=ablate_field_data[f][0]
-                        # part_ablate_field_in_chrest_order = np.reshape(interpolate.interpolate3D(vtx,wts,fielddata),(1,vtx.shape[0]))
-                        # ablate_field_in_chrest_order = np.zeros_like(mask)
-                        # ablate_field_in_chrest_order[mask] = part_ablate_field_in_chrest_order[0]
-                        ablate_field_in_chrest_order[:,:,ii] = np.reshape(interpolate.interpolate3D(vtx,wts,fielddata[:,0],points),(1,vtx.shape[0]))
-                else:
-                    fielddata=np.transpose(ablate_field_data[f][:])
-                    ablate_field_in_chrest_order = np.reshape(interpolate.interpolate3D(vtx,wts,fielddata,points),(1,vtx.shape[0]))
-            else:  
-                a=1
-                # closest node 
-                ablate_field_in_chrest_order = ablate_field_data[f][:, points]
+            if not gradientfield[f]:
+                if self.interpolate:
+                    #interpolation (calculate or use precomputed weights)
+                    #ps. only do interpolation on points that are ~inside of the domain
+                    #currently ONLY 3D interpolation is supported
+                    ablate_field_in_chrest_order = np.zeros_like(ablate_field_data[f][:, points])
+                    if len(ablate_field_data[f].shape)>2:
+                        for ii in range(ablate_field_data[f].shape[2]):
+                            
+                            # fielddata=np.transpose(ablate_field_data[f][:][ii])
+                            fielddata=ablate_field_data[f][0]
+                            # part_ablate_field_in_chrest_order = np.reshape(interpolate.interpolate3D(vtx,wts,fielddata),(1,vtx.shape[0]))
+                            # ablate_field_in_chrest_order = np.zeros_like(mask)
+                            # ablate_field_in_chrest_order[mask] = part_ablate_field_in_chrest_order[0]
+                            ablate_field_in_chrest_order[:,:,ii] = np.reshape(interpolate.interpolate3D(vtx,wts,fielddata[:,ii],points),(1,vtx.shape[0]))
+                    else:
+                        fielddata=np.transpose(ablate_field_data[f][:])
+                        ablate_field_in_chrest_order = np.reshape(interpolate.interpolate3D(vtx,wts,fielddata,points),(1,vtx.shape[0]))
+                else:  
+                    a=1
+                    # closest node 
+                    ablate_field_in_chrest_order = ablate_field_data[f][:, points]
+                
+                setToZero = np.where(dist > max_distance)
+                ablate_field_in_chrest_order[:, setToZero] = 0.0                  
+                
+                # using scipy built in interpolator, impractical for normal size grids, takes really long...
+                # ablate_field_in_chrest_order = griddata((cell_centers[:,0],cell_centers[:,1],cell_centers[:,2]), ablate_field_data[f].T, (chrest_cell_centers), method='linear')
+    
+                # reshape it back to k,j,i
+                ablate_field_in_chrest_order = ablate_field_in_chrest_order.reshape(
+                    chrest_field_data[f].shape
+                )
+                
+                # copy over the data
+                chrest_field_data[f][:] = ablate_field_in_chrest_order[:]
             
-            setToZero = np.where(dist > max_distance)
-            ablate_field_in_chrest_order[:, setToZero] = 0.0                  
+            else:
+                # calculating the gradients
+                # ablate_field_in_chrest_order_temp = np.zeros_like(ablate_field_data[f][:, points])
+                ablate_field_in_chrest_order = np.zeros((ablate_field_data[f][:, points].shape[0],ablate_field_data[f][:, points].shape[1],3))
+                fielddata=ablate_field_data[f][0]
+                
+                ablate_field_in_chrest_order[:,:,0] = np.reshape(interpolate.grad(fielddata[:],vtx,Wx),(1,vtx.shape[0]))
+                ablate_field_in_chrest_order[:,:,1] = np.reshape(interpolate.grad(fielddata[:],vtx,Wy),(1,vtx.shape[0]))
+                ablate_field_in_chrest_order[:,:,2] = np.reshape(interpolate.grad(fielddata[:],vtx,Wz),(1,vtx.shape[0]))
+                
+                setToZero = np.where(dist > max_distance)
+                ablate_field_in_chrest_order[:, setToZero] = 0.0                  
+                
+                # using scipy built in interpolator, impractical for normal size grids, takes really long...
+                # ablate_field_in_chrest_order = griddata((cell_centers[:,0],cell_centers[:,1],cell_centers[:,2]), ablate_field_data[f].T, (chrest_cell_centers), method='linear')
+    
+                # reshape it back to k,j,i
+                ablate_field_in_chrest_order = ablate_field_in_chrest_order.reshape(
+                    chrest_field_data[f].shape
+                )
+                
+                # copy over the data
+                chrest_field_data[f][:] = ablate_field_in_chrest_order[:]
             
-            # using scipy built in interpolator, impractical for normal size grids, takes really long...
-            # ablate_field_in_chrest_order = griddata((cell_centers[:,0],cell_centers[:,1],cell_centers[:,2]), ablate_field_data[f].T, (chrest_cell_centers), method='linear')
-
-            # reshape it back to k,j,i
-            ablate_field_in_chrest_order = ablate_field_in_chrest_order.reshape(
-                chrest_field_data[f].shape
-            )
-            
-            # copy over the data
-            chrest_field_data[f][:] = ablate_field_in_chrest_order[:]
-
+            idx+=1
         # copy over the metadata
         chrest_data.metadata = self.metadata        
 
