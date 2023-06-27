@@ -62,7 +62,7 @@ class AblateData:
         self.timeitervals.append(self.times.copy())
         
         self.interpolate=False
-
+        self.gradients=[]
         # Load in any available metadata based upon the file structure
         self.metadata['path'] = str(self.files[0])
 
@@ -250,7 +250,6 @@ class AblateData:
             # get the field from ablate
             ablate_field_data_tmp, components_tmp, component_names = self.get_field(ablate_field,iteration,
                                                                                     component_select_names)
-
             ablate_field_data.append(ablate_field_data_tmp)
             components.append(components_tmp)
             chrest_field_data.append(chrest_data.create_field(chrest_field, components_tmp, component_names)[0])
@@ -258,7 +257,8 @@ class AblateData:
         
         #Add aditional derivative fields
         derivative_component=['aux_temperature','aux_velocity']
-        for derfield in derivative_component:
+        # for derfield in derivative_component:
+        for derfield in self.gradients:    
             chrest_field = field_mapping[derfield]
             chrest_field ='d'+chrest_field 
             # check to see if there is a down selection of components
@@ -312,8 +312,9 @@ class AblateData:
         # masked_chrest_cell_centers=chrest_cell_centers[mask]            
 
         # vtx, wts = interpolate.calcweight3D(cell_centers, chrest_cell_centers)
-        if self.interpolate:
-            # vtx, wts = interpolate.calc_interpweights_3D(cell_centers, chrest_cell_centers,self.files[0].parent)
+        if self.interpolate and self.gradients is None:
+            vtx, wts = interpolate.calc_interpweights_3D(cell_centers, chrest_cell_centers,self.files[0].parent)
+        elif self.gradients is not None:
             vtx, wts, Wx, Wy, Wz = interpolate.calc_allweights_3D(cell_centers, chrest_cell_centers,self.files[0].parent)
         
         if np.size(cell_centers,1)!=3:
@@ -431,17 +432,21 @@ if __name__ == "__main__":
                         help="The first and last files that the user want to process in the directory default is: [0 -1]",
                         nargs='+')
     
-    parser.add_argument('--interpolate', dest='interpolate', type=bool,
+    parser.add_argument('--interpolate', dest='interpolate', action='store_true',
                         help="Whether you would like to interpolate or not. Currently only available for 3D.",
-                        default=False)
+                        )
     
-    
+    parser.add_argument('--gradients', dest='gradients', type=str,
+                        help='The list of fields in ablate output format  --gradients '
+                             'eg: aux_temperature aux_velocity . The code takes all 3 (x,y,z) spatial derivatives',
+                        nargs='+'
+                        )    
 
     args = parser.parse_args()
 
     # this is some example code for chest file post-processing
     ablate_data = AblateData(args.file)
-
+    print('Starting the conversion to chrest format.')
     if args.print_fields:
         print("Available fields: ", ', '.join(ablate_data.get_fields()))
 
@@ -456,8 +461,12 @@ if __name__ == "__main__":
         if len(field_mapping_list) > 2:
             component_select_names[field_mapping_list[0]] = field_mapping_list[2].split(',')
             
-    if args.interpolate is not None:
-        ablate_data.interpolate=args.interpolate
+    #determine if you want ot interpolate
+    ablate_data.interpolate=int(args.interpolate)    
+    
+    #determine fields for gradients
+    if args.gradients is not None:
+        ablate_data.gradients=args.gradients      
         
     # create a chrest data
     chrest_data = ChrestData()
