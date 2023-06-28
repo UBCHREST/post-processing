@@ -66,7 +66,7 @@ def calc_interpweights_3D(xyz,uvw,path):
     
     def interp_weights(xyz, uvw, d=3):
         # start_time = time.time()
-        tri = qhull.Delaunay(xyz)
+        tri = qhull.Delaunay(xyz, qhull_options='QJ')
         # print("--- %s seconds for triangulation ---" % (time.time() - start_time))
         
         # start_time = time.time()
@@ -132,7 +132,7 @@ def calc_allweights_3D(xyz,uvw,path):
     
     def interp_weights_all(xyz, uvw, d=3):
         start_time = time.time()
-        tri = qhull.Delaunay(xyz)
+        tri = qhull.Delaunay(xyz, qhull_options='QJ')
         print("--- %s seconds for triangulation ---" % (time.time() - start_time))
         
         start_time = time.time()
