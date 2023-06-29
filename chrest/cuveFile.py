@@ -1,14 +1,7 @@
 import argparse
 import pathlib
-import sys
-
-import numpy as np
-import h5py
 
 from chrest.ablateData import AblateData, FieldType
-from chrestData import ChrestData
-from supportPaths import expand_path
-from scipy.spatial import KDTree
 
 # parse based upon the supplied inputs
 if __name__ == "__main__":
@@ -54,6 +47,8 @@ if __name__ == "__main__":
         with open(curve_path, 'w') as f:
             f.write(f'#title={information_name}\n')
             f.write(f'##time={time}\n')
+            f.write(f'#CYCLE {file_index}\n')
+            f.write(f'#TIME {time}\n')
 
         # bump the index
         file_index += 1
