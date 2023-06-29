@@ -18,6 +18,11 @@ from multiprocessing import Pool
 def interp(values, vtx, wts, points, fill_value=np.nan):
     ret = np.einsum('nj,nj->n', np.take(values, vtx), wts)
     mask=np.any(wts < 0, axis=1)
+    print(values.shape)
+    print(points.shape)
+    print(ret.shape)
+    print(points)
+    print(ret)
     for i in range(len(ret)):
         if mask[i]:
             ret[i]=values[points[i]]
