@@ -523,8 +523,10 @@ if __name__ == "__main__":
     
     if args.filerange is None:
         filerange=[0,len(ablate_data.times)]
+        startind=0
     else:
-        filerange=args.filerange    
+        filerange=args.filerange
+        startind=filerange[0]
         
     if args.batchsize is not None:
         if len(ablate_data.times) > args.batchsize:
@@ -550,4 +552,4 @@ if __name__ == "__main__":
         chrest_data_path_base = chrest_data_path_base / (str(args.file.stem).replace("*", "") + ".chrest")
     
         # Save the result data
-        chrest_data.savepart(chrest_data_path_base,i,len(ablate_data.timeitervals[0]))
+        chrest_data.savepart(chrest_data_path_base,i,len(ablate_data.timeitervals[0]),startind)
