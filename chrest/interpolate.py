@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Jun 19 15:36:45 2023
-
-@author: rkolo
-"""
-
 import scipy.interpolate as spint
 import scipy.spatial.qhull as qhull
 import numpy as np
@@ -21,11 +14,12 @@ def interp(values, vtx, wts, points, fill_value=np.nan):
     print(values.shape)
     print(points.shape)
     print(ret.shape)
-    print(points)
-    print(ret)
+
     for i in range(len(ret)):
         if mask[i]:
             ret[i]=values[points[i]]
+    # assigning nan for outside points should work but it get sketch around 
+    # edges...
     # ret[np.any(wts < -1e10, axis=1)] = fill_value
     return ret
 
@@ -73,9 +67,7 @@ def calc_interpweights_3D(xyz,uvw,path):
         # start_time = time.time()
         tri = qhull.Delaunay(xyz, qhull_options='QJ')
         # print("--- %s seconds for triangulation ---" % (time.time() - start_time))
-        
-        # start_time = time.time()
-        
+                
         from multiprocessing import cpu_count
         n_cores = cpu_count()
         
@@ -84,25 +76,20 @@ def calc_interpweights_3D(xyz,uvw,path):
         with Pool(processes=n_cores) as pool:
             results = pool.map(find_simplex_piece, [(piece, tri) for piece in pieces])
         simplex = np.concatenate(results)
+        
+        # or do it using one node...
         # simplex = tri.find_simplex(uvw)
-        # print("--- %s seconds for finding simplices containing the points ---" % (time.time() - start_time))
-        
-        # start_time = time.time()
+
+        #getting the right verticies
         vertices = np.take(tri.simplices, simplex, axis=0)
-        # print("--- %s seconds for getting the vertices from triangulation ---" % (time.time() - start_time))
         
-        # start_time = time.time()    
+        # mapping triangulation into barycentric coord    
         temp = np.take(tri.transform, simplex, axis=0)
-        # print("--- %s seconds mapping triangulation into barycentric coord ---" % (time.time() - start_time))
-        
-        # start_time = time.time()
         delta = uvw - temp[:, d]
-        # print("--- %s seconds calculating local mapping coordinates ---" % (time.time() - start_time))
-        
-        # start_time = time.time()
+
+        # normalized barycentric coords
         bary = np.einsum('njk,nk->nj', temp[:, :d, :], delta)
-        # print("--- %s seconds getting the normalized barycentric coords ---" % (time.time() - start_time))
-        
+
         return vertices, np.hstack((bary, 1 - bary.sum(axis=1, keepdims=True)))    
 
     
@@ -128,7 +115,7 @@ def calc_interpweights_3D(xyz,uvw,path):
         vtx = np.array([[int(round(float(row[i]))) for i in range(4)] for row in rows], dtype=np.int64)
         wts = np.array([[float(row[i]) for i in range(4, 8)] for row in rows], dtype=np.float64)
         print(f'Read {filename} successfully.')        
-    # print("--- %s seconds for calculating the weights---" % (time.time() - start_time))
+    
     
     return vtx,wts
 
@@ -136,11 +123,8 @@ def calc_allweights_3D(xyz,uvw,path):
 
     
     def interp_weights_all(xyz, uvw, d=3):
-        start_time = time.time()
-        tri = qhull.Delaunay(xyz, qhull_options='QJ')
-        print("--- %s seconds for triangulation ---" % (time.time() - start_time))
         
-        start_time = time.time()
+        tri = qhull.Delaunay(xyz, qhull_options='QJ')
         
         from multiprocessing import cpu_count
         n_cores = cpu_count()
@@ -151,24 +135,18 @@ def calc_allweights_3D(xyz,uvw,path):
             results = pool.map(find_simplex_piece, [(piece, tri) for piece in pieces])
         simplex = np.concatenate(results)
         
+        # or do it using one node...
         # simplex = tri.find_simplex(uvw)
-        print("--- %s seconds for finding simplices containing the points ---" % (time.time() - start_time))
-        
-        # start_time = time.time()
+
+        #getting the right verticies
         vertices = np.take(tri.simplices, simplex, axis=0)
-        # print("--- %s seconds for getting the vertices from triangulation ---" % (time.time() - start_time))
         
-        # start_time = time.time()    
+        # mapping triangulation into barycentric coord    
         temp = np.take(tri.transform, simplex, axis=0)
-        # print("--- %s seconds mapping triangulation into barycentric coord ---" % (time.time() - start_time))
-        
-        # start_time = time.time()
         delta = uvw - temp[:, d]
-        # print("--- %s seconds calculating local mapping coordinates ---" % (time.time() - start_time))
-        
-        # start_time = time.time()
+
+        # normalized barycentric coords
         bary = np.einsum('njk,nk->nj', temp[:, :d, :], delta)
-        # print("--- %s seconds getting the normalized barycentric coords ---" % (time.time() - start_time))
         
         ind=0
         W1=np.zeros_like(tri.simplices, dtype=float)
@@ -222,12 +200,7 @@ def calc_allweights_3D(xyz,uvw,path):
     return vtx, wts, Wx, Wy, Wz
         
 def interpolate3D(vtx,wts,field,points):       
-        
-    # start_time = time.time()
-    # valuesi = interpolate(values.flatten(), vtx, wts)
-    valuesi=interp(field, vtx, wts,points)
-    # print("--- %s seconds for interpolation with the precalc weights---" % (time.time() - start_time))
-    
+
+    valuesi=interp(field, vtx, wts, points)
+
     return valuesi
-   
-    
