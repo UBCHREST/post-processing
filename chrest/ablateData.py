@@ -36,6 +36,13 @@ class AblateData:
         # store the cells and vertices
         self.cells = None
         self.vertices = None
+        
+        # stroe interpolation information
+        self.vtx=[]
+        self.wts=[]
+        self.Wx=[]
+        self.Wy=[]
+        self.Wz=[]
 
         # load the metadata from the first file
         self.metadata = dict()
@@ -290,7 +297,6 @@ class AblateData:
                     chrest_field_data.append(chrest_data.create_field(comfieldname, 3, component_names)[0])
                     idx+=1
                     gradientfield.append(1)
-            # gradientfield.append(1)
         
         # build a list of k, j, i points to iterate over
         chrest_coords = chrest_data.get_coordinates()
