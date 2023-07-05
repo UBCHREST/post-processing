@@ -122,17 +122,31 @@ class AblateData:
     def compute_cell_centers(self, dimensions=-1):
         # create a new np array based upon the dim
         number_cells = self.cells.shape[0]
-
         vertices = self.vertices[:]
         vertices_dim = 1
         if len(vertices.shape) > 1:
             vertices_dim = vertices.shape[1]
-
         if dimensions < 0:
             dimensions = vertices_dim
 
         coords = np.zeros((number_cells, dimensions))
 
+        # march over each cell
+        for c in range(len(coords)):
+            cell_vertices = vertices.take(self.cells[c], axis=0)
+
+            # take the average
+            cell_center = np.sum(cell_vertices, axis=0)
+            cell_center = cell_center / len(cell_vertices)
+
+            # put back
+            coords[c, 0:vertices_dim] = cell_center
+
+        # if this is one d, flatten
+        if dimensions == 1:
+            coords = coords[:, 0]
+
+        return coords
     """
     Returns the vertexes in the order used in the mesh
     """
