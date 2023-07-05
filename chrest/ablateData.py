@@ -349,18 +349,11 @@ class AblateData:
 
         # reshape to get a single list order back
         chrest_cell_centers = chrest_coords.reshape((chrest_cell_number, chrest_data.dimensions))
-        
 
         # now search and copy over data
         tree = KDTree(cell_centers)
         dist, points = tree.query(chrest_cell_centers, workers=-1)
         
-        #interpolate if you are closer than the max _distance
-        # mask = dist < max_distance
-        
-        # masked_chrest_cell_centers=chrest_cell_centers[mask]            
-
-        # vtx, wts = interpolate.calcweight3D(cell_centers, chrest_cell_centers)
         if len(self.vtx) == 0: 
             if self.interpolate and self.gradients is None:
                 self.vtx, self.wts = interpolate.calc_interpweights_3D(cell_centers, chrest_cell_centers,self.files[0].parent)
@@ -382,12 +375,7 @@ class AblateData:
                     for t in range(len(ablate_field_in_chrest_order)):
                         if len(ablate_field_data[f].shape)>2:
                             for ii in range(ablate_field_data[f].shape[2]):
-                                
-                                # fielddata=np.transpose(ablate_field_data[f][:][ii])
                                 fielddata=ablate_field_data[f][t]
-                                # part_ablate_field_in_chrest_order = np.reshape(interpolate.interpolate3D(vtx,wts,fielddata),(1,vtx.shape[0]))
-                                # ablate_field_in_chrest_order = np.zeros_like(mask)
-                                # ablate_field_in_chrest_order[mask] = part_ablate_field_in_chrest_order[0]
                                 ablate_field_in_chrest_order[t,:,ii] = np.reshape(interpolate.interpolate3D(self.vtx,self.wts,fielddata[:,ii],points),(1,self.vtx.shape[0]))
                         else:
                             fielddata=np.transpose(ablate_field_data[f][:])
@@ -397,11 +385,8 @@ class AblateData:
                     ablate_field_in_chrest_order = ablate_field_data[f][:, points]
                 
                 setToZero = np.where(dist > max_distance)
-                ablate_field_in_chrest_order[:, setToZero] = 0.0                  
+                ablate_field_in_chrest_order[:, setToZero] = 0.0
                 
-                # using scipy built in interpolator, impractical for normal size grids, takes really long...
-                # ablate_field_in_chrest_order = griddata((cell_centers[:,0],cell_centers[:,1],cell_centers[:,2]), ablate_field_data[f].T, (chrest_cell_centers), method='linear')
-    
                 # reshape it back to k,j,i
                 ablate_field_in_chrest_order = ablate_field_in_chrest_order.reshape(
                     chrest_field_data[f].shape
@@ -412,7 +397,6 @@ class AblateData:
             
             else:
                 # calculating the gradients
-                # ablate_field_in_chrest_order_temp = np.zeros_like(ablate_field_data[f][:, points])
                 ablate_field_in_chrest_order = np.zeros((ablate_field_data[f][:, points].shape[0],ablate_field_data[f][:, points].shape[1],3))
                 for t in range(len(ablate_field_in_chrest_order)):
                     fielddata=ablate_field_data[f][t]
