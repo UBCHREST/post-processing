@@ -309,13 +309,13 @@ class ChrestData:
         # write the xdmf file
         xdfm.write_to_file(str(path_template) + ".xdmf")
 
-    def savepart(self, path_template, i, intlen):
+    def savepart(self, path_template,i,intlen,startind):
         # generate an xdfm object at the same time
         xdfm = XdmfGenerator()
 
         # march over the files
         for index in range(len(self.times)):
-            fileindex = index + i * intlen
+            fileindex=index+i*intlen+int(startind)
             # Name the file
             hdf5_path = str(path_template) + f".{fileindex:05d}.hdf5"
 

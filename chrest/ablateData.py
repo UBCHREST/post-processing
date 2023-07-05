@@ -1,6 +1,7 @@
 import argparse
 import pathlib
-import sys
+import sys, os
+import csv
 
 import numpy as np
 import h5py
@@ -8,6 +9,8 @@ import h5py
 from chrestData import ChrestData
 from supportPaths import expand_path
 from scipy.spatial import KDTree
+from scipy.interpolate import griddata
+import interpolate 
 from enum import Enum
 
 
@@ -31,7 +34,7 @@ class AblateData:
             self.files = expand_path(files)
         else:
             self.files = files
-
+        
         # store the files based upon time
         self.files_per_time = dict()
         self.index_per_time = dict()
@@ -42,6 +45,13 @@ class AblateData:
         # store the cells and vertices
         self.cells = None
         self.vertices = None
+        
+        # stroe interpolation information
+        self.vtx=[]
+        self.wts=[]
+        self.Wx=[]
+        self.Wy=[]
+        self.Wz=[]
 
         # load the metadata from the first file
         self.metadata = dict()
@@ -67,7 +77,9 @@ class AblateData:
         self.times = list(self.files_per_time.keys())
         self.times.sort()
         self.timeitervals.append(self.times.copy())
-
+        
+        self.interpolate=False
+        self.gradients=[]
         # Load in any available metadata based upon the file structure
         self.metadata['path'] = str(self.files[0])
 
@@ -78,7 +90,7 @@ class AblateData:
                 self.metadata['restart.rst'] = restart_file.read_text()
         except (Exception,):
             print("Could not locate restart.rst for metadata")
-
+            
         # load in the restart file
         try:
             simulation_directory = self.files[0].parent.parent
@@ -110,12 +122,10 @@ class AblateData:
     def compute_cell_centers(self, dimensions=-1):
         # create a new np array based upon the dim
         number_cells = self.cells.shape[0]
-
         vertices = self.vertices[:]
         vertices_dim = 1
         if len(vertices.shape) > 1:
             vertices_dim = vertices.shape[1]
-
         if dimensions < 0:
             dimensions = vertices_dim
 
@@ -137,7 +147,6 @@ class AblateData:
             coords = coords[:, 0]
 
         return coords
-
     """
     Returns the vertexes in the order used in the mesh
     """
@@ -229,10 +238,10 @@ class AblateData:
         else:
             vector = self.times
         n = int(inputn)
-        self.numintervals = (len(vector) // n)  # Calculate the number of sub-vectors
-
+        self.numintervals = (len(vector) // n)   # Calculate the number of sub-vectors
+    
         self.timeitervals = [vector[i:i + n] for i in range(0, self.numintervals * n, n)]
-
+    
         # If there are any remaining elements, create a sub-vector with the leftover elements
         remaining_elements = len(vector) % n
         if remaining_elements != 0:
@@ -241,16 +250,33 @@ class AblateData:
         # if remaining_elements == 0:
         #     self.numintervals += 1
         # return sub_vectors
+    
 
     """
     converts the supplied fields ablate object to chrest data object.
     """
-
+        
     def map_to_chrest_data(self, chrest_data, field_mapping, iteration, field_select_components=dict(),
-                           max_distance=sys.float_info.max):
+                            max_distance=sys.float_info.max):
         # get the cell centers for this mesh
-        cell_centers = self.compute_cell_centers(chrest_data.dimensions)
-
+        # cell_centers = self.compute_cell_centers(chrest_data.dimensions)
+        gradientfield=[]
+        filename_coordinate = 'ablatecoords_'+str(len(self.vertices))+'_vert.csv'
+        # filename2 = 'verticies_ablate_'+str(len(xyz))+'chrest_'+str(len(uvw))+'.csv'
+        filepath = self.files[0].parent / filename_coordinate
+        
+        if not filepath.exists():        
+            cell_centers = self.compute_cell_centers(chrest_data.dimensions)
+            with open(filepath, 'w', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerows(cell_centers)
+            print(f'Saved {filename_coordinate} successfully.')
+        else:
+            with open(filepath, 'r') as csvfile:
+                reader = csv.reader(csvfile)
+                cell_centers = np.array([[float(value) for value in row] for row in reader])
+            print(f'Read {filename_coordinate} successfully.')
+            
         # add the ablate times to chrest
         # chrest_data.times = self.times.copy()
         chrest_data.times = self.timeitervals[iteration].copy()
@@ -274,11 +300,47 @@ class AblateData:
             # get the field from ablate
             ablate_field_data_tmp, components_tmp, component_names = self.get_field(ablate_field, iteration,
                                                                                     component_select_names)
-
             ablate_field_data.append(ablate_field_data_tmp)
             components.append(components_tmp)
             chrest_field_data.append(chrest_data.create_field(chrest_field, components_tmp, component_names)[0])
+            gradientfield.append(0)
+        
+        #Add aditional derivative fields
+        derivative_component=['aux_temperature','aux_velocity']
+        # for derfield in derivative_component:
+        for derfield in self.gradients:    
+            chrest_field = field_mapping[derfield]
+            chrest_field ='d'+chrest_field 
+            # check to see if there is a down selection of components
+            component_select_names = field_select_components.get(derfield)
 
+            # get the field from ablate
+            ablate_field_data_tmp, components_tmp, component_names = self.get_field(derfield,iteration,
+                                                                                    component_select_names)
+            if component_names is None:
+                ablate_field_data.append(ablate_field_data_tmp)
+                components.append(3)
+                component_names=[]
+                component_names.append(chrest_field+ '_dx')
+                component_names.append(chrest_field+ '_dy')
+                component_names.append(chrest_field+ '_dz')
+                chrest_field_data.append(chrest_data.create_field(chrest_field, 3, component_names)[0])
+                gradientfield.append(1)
+            else:
+                idx=0
+
+                for compfield in component_names:
+                    ablate_field_data.append(ablate_field_data_tmp[:,:,idx])
+                    components.append(3)
+                    component_names=[]
+                    comfieldname='d'+compfield
+                    component_names.append(comfieldname+ '_dx')
+                    component_names.append(comfieldname+ '_dy')
+                    component_names.append(comfieldname+ '_dz')
+                    chrest_field_data.append(chrest_data.create_field(comfieldname, 3, component_names)[0])
+                    idx+=1
+                    gradientfield.append(1)
+        
         # build a list of k, j, i points to iterate over
         chrest_coords = chrest_data.get_coordinates()
 
@@ -291,24 +353,73 @@ class AblateData:
         # now search and copy over data
         tree = KDTree(cell_centers)
         dist, points = tree.query(chrest_cell_centers, workers=-1)
-
+        
+        if len(self.vtx) == 0: 
+            if self.interpolate and self.gradients is None:
+                self.vtx, self.wts = interpolate.calc_interpweights_3D(cell_centers, chrest_cell_centers,self.files[0].parent)
+            elif self.gradients is not None:
+                self.vtx, self.wts, self.Wx, self.Wy, self.Wz = interpolate.calc_allweights_3D(cell_centers, chrest_cell_centers,self.files[0].parent)
+        
+        if np.size(cell_centers,1)!=3:
+            print('Warning! The code has not been tested for 2D grids...')
+        
         # march over each field
+        idx = 0
         for f in range(len(ablate_field_data)):
-            # get in the correct order
-            ablate_field_in_chrest_order = ablate_field_data[f][:, points]
-
-            setToZero = np.where(dist > max_distance)
-
-            ablate_field_in_chrest_order[:, setToZero] = 0.0
-
-            # reshape it back to k,j,i
-            ablate_field_in_chrest_order = ablate_field_in_chrest_order.reshape(
-                chrest_field_data[f].shape
-            )
-
-            # copy over the data
-            chrest_field_data[f][:] = ablate_field_in_chrest_order[:]
-
+            if not gradientfield[f]:
+                if self.interpolate:
+                    #interpolation (calculate or use precomputed weights)
+                    #ps. only do interpolation on points that are ~inside of the domain
+                    #currently ONLY 3D interpolation is supported
+                    ablate_field_in_chrest_order = np.zeros_like(ablate_field_data[f][:, points])
+                    for t in range(len(ablate_field_in_chrest_order)):
+                        if len(ablate_field_data[f].shape)>2:
+                            for ii in range(ablate_field_data[f].shape[2]):
+                                fielddata=ablate_field_data[f][t]
+                                ablate_field_in_chrest_order[t,:,ii] = np.reshape(interpolate.interpolate3D(self.vtx,self.wts,fielddata[:,ii],points),(1,self.vtx.shape[0]))
+                        else:
+                            fielddata=np.transpose(ablate_field_data[f][:])
+                            ablate_field_in_chrest_order[t,:] = np.reshape(interpolate.interpolate3D(self.vtx,self.wts,fielddata[:,t],points),(1,self.vtx.shape[0]))
+                else:  
+                    # closest node 
+                    ablate_field_in_chrest_order = ablate_field_data[f][:, points]
+                
+                setToZero = np.where(dist > max_distance)
+                ablate_field_in_chrest_order[:, setToZero] = 0.0
+                
+                # reshape it back to k,j,i
+                ablate_field_in_chrest_order = ablate_field_in_chrest_order.reshape(
+                    chrest_field_data[f].shape
+                )
+                
+                # copy over the data
+                chrest_field_data[f][:] = ablate_field_in_chrest_order[:]
+            
+            else:
+                # calculating the gradients
+                ablate_field_in_chrest_order = np.zeros((ablate_field_data[f][:, points].shape[0],ablate_field_data[f][:, points].shape[1],3))
+                for t in range(len(ablate_field_in_chrest_order)):
+                    fielddata=ablate_field_data[f][t]
+                    
+                    ablate_field_in_chrest_order[t,:,0] = np.reshape(interpolate.grad(fielddata[:],self.vtx,self.Wx),(1,self.vtx.shape[0]))
+                    ablate_field_in_chrest_order[t,:,1] = np.reshape(interpolate.grad(fielddata[:],self.vtx,self.Wy),(1,self.vtx.shape[0]))
+                    ablate_field_in_chrest_order[t,:,2] = np.reshape(interpolate.grad(fielddata[:],self.vtx,self.Wz),(1,self.vtx.shape[0]))
+                
+                setToZero = np.where(dist > max_distance)
+                ablate_field_in_chrest_order[:, setToZero] = 0.0                  
+                
+                # using scipy built in interpolator, impractical for normal size grids, takes really long...
+                # ablate_field_in_chrest_order = griddata((cell_centers[:,0],cell_centers[:,1],cell_centers[:,2]), ablate_field_data[f].T, (chrest_cell_centers), method='linear')
+    
+                # reshape it back to k,j,i
+                ablate_field_in_chrest_order = ablate_field_in_chrest_order.reshape(
+                    chrest_field_data[f].shape
+                )
+                
+                # copy over the data
+                chrest_field_data[f][:] = ablate_field_in_chrest_order[:]
+            
+            idx+=1
         # copy over the metadata
         chrest_data.metadata = self.metadata
 
@@ -355,12 +466,22 @@ if __name__ == "__main__":
     parser.add_argument('--filerange', dest='filerange', type=float,
                         help="The first and last files that the user want to process in the directory default is: [0 -1]",
                         nargs='+')
+    
+    parser.add_argument('--interpolate', dest='interpolate', action='store_true',
+                        help="Whether you would like to interpolate or not. Currently only available for 3D.",
+                        )
+    
+    parser.add_argument('--gradients', dest='gradients', type=str,
+                        help='The list of fields in ablate output format  --gradients '
+                             'eg: aux_temperature aux_velocity . The code takes all 3 (x,y,z) spatial derivatives',
+                        nargs='+'
+                        )    
 
     args = parser.parse_args()
 
     # this is some example code for chest file post-processing
     ablate_data = AblateData(args.file)
-
+    print('Starting the conversion to chrest format.')
     if args.print_fields:
         print("Available fields: ", ', '.join(ablate_data.get_fields()))
 
@@ -374,32 +495,47 @@ if __name__ == "__main__":
         # check to see if there are select components
         if len(field_mapping_list) > 2:
             component_select_names[field_mapping_list[0]] = field_mapping_list[2].split(',')
-
+            
+    #determine if you want ot interpolate
+    ablate_data.interpolate=int(args.interpolate)    
+    
+    #determine fields for gradients
+    if args.gradients is not None:
+        ablate_data.gradients=args.gradients      
+        
     # create a chrest data
     chrest_data = ChrestData()
     chrest_data.setup_new_grid(args.start, args.end, args.delta)
-
+    
     if args.filerange is None:
-        filerange = [0, len(ablate_data.times)]
+        filerange=[0,len(ablate_data.times)]
+        startind=0
     else:
-        filerange = args.filerange
-
+        filerange=args.filerange
+        startind=filerange[0]
+        
     if args.batchsize is not None:
         if len(ablate_data.times) > args.batchsize:
-            ablate_data.sort_time(args.batchsize, filerange)
+            ablate_data.sort_time(args.batchsize,filerange)
             print("The code processes " + str(args.batchsize) + " files at a time.")
         else:
-            ablate_data.sort_time(len(ablate_data.times), filerange)
+            ablate_data.sort_time(len(ablate_data.times),filerange)
             print("The code processes " + str(len(ablate_data.times)) + " files at a time.")
-
-    for i in range(0, ablate_data.numintervals):
+    else:
+        ablate_data.sort_time(len(ablate_data.times),filerange)
+        
+    import time
+    for i in range(0,ablate_data.numintervals):
         # map the ablate data to chrest
-        ablate_data.map_to_chrest_data(chrest_data, field_mappings, i, component_select_names, args.max_distance)
-
+        
+        start_time = time.time()
+        ablate_data.map_to_chrest_data(chrest_data, field_mappings,i, component_select_names, args.max_distance)
+        print("--- %s seconds ---" % (time.time() - start_time))
+        
         # write the new file without wild card
         chrest_data_path_base = args.file.parent / (str(args.file.stem).replace("*", "") + ".chrest")
         chrest_data_path_base.mkdir(parents=True, exist_ok=True)
         chrest_data_path_base = chrest_data_path_base / (str(args.file.stem).replace("*", "") + ".chrest")
 
         # Save the result data
-        chrest_data.savepart(chrest_data_path_base, i, len(ablate_data.timeitervals[0]))
+        chrest_data.savepart(chrest_data_path_base, i, len(ablate_data.timeitervals[0]), startind)
