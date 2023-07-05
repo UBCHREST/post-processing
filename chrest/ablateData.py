@@ -170,7 +170,7 @@ class AblateData:
     gets the specified field and the number of components
     """
 
-    def get_field(self, field_name, interwal, component_names=None):
+    def get_field(self, field_name, interwal=0, component_names=None):
         # create a dictionary of times/data
         data = []
         components = 0
@@ -229,18 +229,18 @@ class AblateData:
             hdf5.close
 
         return np.stack(data), components, all_component_names
-    
-    def sort_time(self, inputn,filerange):
-        if int(filerange[1])!=-1:
-            vector = self.times[int(filerange[0]):int(filerange[1])+1]
-        elif int(filerange[1])!=0:
-            vector = self.times[int(filerange[0]-1):int(filerange[1])]
+
+    def sort_time(self, inputn, filerange):
+        if int(filerange[1]) != -1:
+            vector = self.times[int(filerange[0]):int(filerange[1]) + 1]
+        elif int(filerange[1]) != 0:
+            vector = self.times[int(filerange[0] - 1):int(filerange[1])]
         else:
             vector = self.times
-        n=int(inputn)
-        self.numintervals = (len(vector) // n)    # Calculate the number of sub-vectors
+        n = int(inputn)
+        self.numintervals = (len(vector) // n)   # Calculate the number of sub-vectors
     
-        self.timeitervals = [vector[i:i+n] for i in range(0, self.numintervals * n, n)]
+        self.timeitervals = [vector[i:i + n] for i in range(0, self.numintervals * n, n)]
     
         # If there are any remaining elements, create a sub-vector with the leftover elements
         remaining_elements = len(vector) % n
@@ -248,7 +248,7 @@ class AblateData:
             self.timeitervals.append(vector[self.numintervals * n:])
             self.numintervals += 1
         # if remaining_elements == 0:
-        #     self.numintervals += 1 
+        #     self.numintervals += 1
         # return sub_vectors
     
 
@@ -256,7 +256,7 @@ class AblateData:
     converts the supplied fields ablate object to chrest data object.
     """
         
-    def map_to_chrest_data(self, chrest_data, field_mapping,iteration, field_select_components=dict(),
+    def map_to_chrest_data(self, chrest_data, field_mapping, iteration, field_select_components=dict(),
                             max_distance=sys.float_info.max):
         # get the cell centers for this mesh
         # cell_centers = self.compute_cell_centers(chrest_data.dimensions)
@@ -298,7 +298,7 @@ class AblateData:
             component_select_names = field_select_components.get(ablate_field)
 
             # get the field from ablate
-            ablate_field_data_tmp, components_tmp, component_names = self.get_field(ablate_field,iteration,
+            ablate_field_data_tmp, components_tmp, component_names = self.get_field(ablate_field, iteration,
                                                                                     component_select_names)
             ablate_field_data.append(ablate_field_data_tmp)
             components.append(components_tmp)
@@ -437,7 +437,7 @@ class AblateData:
             
             idx+=1
         # copy over the metadata
-        chrest_data.metadata = self.metadata        
+        chrest_data.metadata = self.metadata
 
 
 # parse based upon the supplied inputs
@@ -475,10 +475,10 @@ if __name__ == "__main__":
 
     parser.add_argument('--max_distance', dest='max_distance', type=float,
                         help="The max distance to search for a point in ablate", default=sys.float_info.max)
-    
+
     parser.add_argument('--batchsize', dest='batchsize', type=float,
                         help="The number of files to be loaded in at once")
-    
+
     parser.add_argument('--filerange', dest='filerange', type=float,
                         help="The first and last files that the user want to process in the directory default is: [0 -1]",
                         nargs='+')
@@ -552,6 +552,6 @@ if __name__ == "__main__":
         chrest_data_path_base = args.file.parent / (str(args.file.stem).replace("*", "") + ".chrest")
         chrest_data_path_base.mkdir(parents=True, exist_ok=True)
         chrest_data_path_base = chrest_data_path_base / (str(args.file.stem).replace("*", "") + ".chrest")
-    
+
         # Save the result data
-        chrest_data.savepart(chrest_data_path_base,i,len(ablate_data.timeitervals[0]),startind)
+        chrest_data.savepart(chrest_data_path_base, i, len(ablate_data.timeitervals[0]), startind)
