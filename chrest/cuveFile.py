@@ -35,11 +35,6 @@ if __name__ == "__main__":
     curve_path_base.mkdir(parents=True, exist_ok=True)
     curve_path_base = curve_path_base / (information_name + "curve")
 
-    # make sure that the mesh is 1D
-    cell_centers = ablate_data.compute_geometry(field_type)
-    if len(cell_centers.shape) != 1:
-        raise Exception("The input data must be 1D to be converted to a curve file")
-
     # create a new file for each field based upon time
     file_index = 0
     for time in ablate_data.times:
@@ -63,6 +58,12 @@ if __name__ == "__main__":
         for time in ablate_data.times:
             curve_path = str(curve_path_base) + f".{file_index:05d}.curve"
             with open(curve_path, 'a') as f:
+
+                # load in the geometry
+                # make sure that the mesh is 1D
+                cell_centers = ablate_data.compute_geometry(field_type, time)
+                if len(cell_centers.shape) != 1:
+                    raise Exception("The input data must be 1D to be converted to a curve file")
 
                 # if there is only one component
                 if number_components <= 1:
