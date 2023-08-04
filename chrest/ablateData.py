@@ -45,6 +45,7 @@ class AblateData:
         # store the cells and vertices
         self.cells = None
         self.vertices = None
+        self.geometry_file = 0
         
         # stroe interpolation information
         self.vtx=[]
@@ -65,6 +66,7 @@ class AblateData:
             if self.cells is None:
                 self.cells = hdf5["viz"]["topology"]["cells"]
                 self.vertices = hdf5["geometry"]["vertices"][:]
+                self.geometry_file = file
 
             # extract the time
             timeInFile = hdf5['time'][:, 0]
@@ -103,7 +105,6 @@ class AblateData:
     """
     Reports the fields from each the file
     """
-
     def get_fields(self, field_type=FieldType.CELL):
         fields_names = []
 
@@ -157,8 +158,16 @@ class AblateData:
     """
     Returns either the cell centers or vertices 
     """
+    def compute_geometry(self, field_type, geometry_time=0.0):
+        # if a specific time is specified, reload the geometry from that file
+        if self.files_per_time[geometry_time] != self.geometry_file:
+            # Load in the hdf5 file
+            hdf5 = h5py.File(self.files_per_time[geometry_time], 'r')
 
-    def compute_geometry(self, field_type):
+            self.cells = hdf5["viz"]["topology"]["cells"]
+            self.vertices = hdf5["geometry"]["vertices"][:]
+            self.geometry_file = self.files_per_time[geometry_time]
+
         if field_type == FieldType.CELL:
             return self.compute_cell_centers()
         elif field_type == FieldType.VERTEX:
