@@ -342,11 +342,7 @@ class ChrestData:
                     if field in self.new_data_component_names:
                         newField.attrs.create('components', self.new_data_component_names[field])
 
-            # add to the xdfm info
-            # xdfm.append_chrest_hdf5(hdf5_path)
-
-        # write the xdmf file
-        # xdfm.write_to_file(str(path_template) + ".xdmf")    
+            #Only ablateData uses this function and xdmf is generated from that class        
 
     """
     Compute the mean and rms of a field and return in new chrest data
