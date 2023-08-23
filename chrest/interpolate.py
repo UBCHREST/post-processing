@@ -1,19 +1,15 @@
+
 import scipy.interpolate as spint
 import scipy.spatial.qhull as qhull
 import numpy as np
 from scipy.interpolate import griddata
 import time
-import os
-import h5py
 import csv
 from multiprocessing import Pool
 
 def interp(values, vtx, wts, points, fill_value=np.nan):
     ret = np.einsum('nj,nj->n', np.take(values, vtx), wts)
     mask=np.any(wts < 0, axis=1)
-    print(values.shape)
-    print(points.shape)
-    print(ret.shape)
 
     for i in range(len(ret)):
         if mask[i]:
@@ -90,7 +86,10 @@ def calc_interpweights_3D(xyz,uvw,path):
         # normalized barycentric coords
         bary = np.einsum('njk,nk->nj', temp[:, :d, :], delta)
 
-        return vertices, np.hstack((bary, 1 - bary.sum(axis=1, keepdims=True)))    
+        Weights = np.hstack((bary, 1 - bary.sum(axis=1, keepdims=True)))
+        Weights[simplex == -1,:] = 0
+        
+        return vertices, Weights
 
     
     filename = 'linweight3D_ablate_'+str(len(xyz))+'chrest_'+str(len(uvw))+'.csv'
@@ -166,7 +165,10 @@ def calc_allweights_3D(xyz,uvw,path):
         Wy[simplex == -1,:] = np.nan
         Wz[simplex == -1,:] = np.nan
         
-        return vertices, np.hstack((bary, 1 - bary.sum(axis=1, keepdims=True))), Wx, Wy, Wz
+        Weights = np.hstack((bary, 1 - bary.sum(axis=1, keepdims=True)))
+        Weights[simplex == -1,:] = 0
+        
+        return vertices, Weights, Wx, Wy, Wz
 
     filename = 'allweight3D_ablate_'+str(len(xyz))+'chrest_'+str(len(uvw))+'.csv'
     filepath = path / filename
@@ -204,3 +206,5 @@ def interpolate3D(vtx,wts,field,points):
     valuesi=interp(field, vtx, wts, points)
 
     return valuesi
+   
+    
