@@ -416,8 +416,7 @@ class AblateData:
                     ablate_field_in_chrest_order[t,:,2] = np.reshape(interpolate.grad(fielddata[:],self.vtx,self.Wz),(1,self.vtx.shape[0]))
                 
                 setToZero = np.where(dist > max_distance)
-                closestpoints=(np.array(points[setToZero]),)
-                ablate_field_in_chrest_order[:, setToZero] = ablate_field_data[f][:, closestpoints]                 
+                ablate_field_in_chrest_order[:, setToZero] = 0.0                 
                 
                 # using scipy built in interpolator, impractical for normal size grids, takes really long...
                 # ablate_field_in_chrest_order = griddata((cell_centers[:,0],cell_centers[:,1],cell_centers[:,2]), ablate_field_data[f].T, (chrest_cell_centers), method='linear')
