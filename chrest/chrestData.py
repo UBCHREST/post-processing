@@ -311,7 +311,7 @@ class ChrestData:
     
     def savepart(self, path_template,i,intlen,startind):
         # generate an xdfm object at the same time
-        # xdfm = XdmfGenerator()
+        xdfm = XdmfGenerator()
 
         # march over the files
         for index in range(len(self.times)):
@@ -343,6 +343,11 @@ class ChrestData:
                         newField.attrs.create('components', self.new_data_component_names[field])
 
             #Only ablateData uses this function and xdmf is generated from that class        
+            # add to the xdfm info
+            xdfm.append_chrest_hdf5(hdf5_path)
+
+        # write the xdmf file
+        xdfm.write_to_file(str(path_template) + ".xdmf")
 
     """
     Compute the mean and rms of a field and return in new chrest data
