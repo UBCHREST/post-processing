@@ -12,7 +12,7 @@ from scipy.spatial import KDTree
 from scipy.interpolate import griddata
 import interpolate 
 from enum import Enum
-
+from xdmfGenerator import XdmfGenerator
 
 # class syntax
 class FieldType(Enum):
@@ -299,7 +299,7 @@ class AblateData:
         components = []
 
         # create the new field in the chrest data
-
+        
         for ablate_field in ablate_fields:
             chrest_field = field_mapping[ablate_field]
 
@@ -315,7 +315,7 @@ class AblateData:
             gradientfield.append(0)
         
         #Add aditional derivative fields
-        derivative_component=['aux_temperature','aux_velocity']
+        # derivative_component=['aux_temperature','aux_velocity']
         # for derfield in derivative_component:
         for derfield in self.gradients:    
             chrest_field = field_mapping[derfield]
@@ -394,7 +394,8 @@ class AblateData:
                     ablate_field_in_chrest_order = ablate_field_data[f][:, points]
                 
                 setToZero = np.where(dist > max_distance)
-                ablate_field_in_chrest_order[:, setToZero] = 0.0
+                closestpoints=(np.array(points[setToZero]),)
+                ablate_field_in_chrest_order[:, setToZero] = ablate_field_data[f][:, closestpoints]
                 
                 # reshape it back to k,j,i
                 ablate_field_in_chrest_order = ablate_field_in_chrest_order.reshape(
@@ -415,7 +416,7 @@ class AblateData:
                     ablate_field_in_chrest_order[t,:,2] = np.reshape(interpolate.grad(fielddata[:],self.vtx,self.Wz),(1,self.vtx.shape[0]))
                 
                 setToZero = np.where(dist > max_distance)
-                ablate_field_in_chrest_order[:, setToZero] = 0.0                  
+                ablate_field_in_chrest_order[:, setToZero] = 0.0                 
                 
                 # using scipy built in interpolator, impractical for normal size grids, takes really long...
                 # ablate_field_in_chrest_order = griddata((cell_centers[:,0],cell_centers[:,1],cell_centers[:,2]), ablate_field_data[f].T, (chrest_cell_centers), method='linear')
@@ -548,3 +549,20 @@ if __name__ == "__main__":
 
         # Save the result data
         chrest_data.savepart(chrest_data_path_base, i, len(ablate_data.timeitervals[0]), startind)
+    
+    newdir = args.file.parent / (str(args.file.stem).replace("*", "") + ".chrest")
+    xdmf_file =  newdir / (str(args.file.stem.replace('*', '') + ".xdmf"))
+
+    hdf5_paths = expand_path(newdir / os.path.basename(str(args.file)))
+
+    # generate an xdfm object
+    xdfm = XdmfGenerator()
+
+    # #convert with new path
+    for hdf5_file in hdf5_paths:
+        # create component markdown
+        xdfm.append_chrest_hdf5(hdf5_file)
+
+    # write the xdmf file
+    xdfm.write_to_file(xdmf_file)
+    
