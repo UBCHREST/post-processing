@@ -9,7 +9,7 @@ from multiprocessing import Pool
 
 def interp(values, vtx, wts, points, fill_value=np.nan):
     ret = np.einsum('nj,nj->n', np.take(values, vtx), wts)
-    mask=np.any(wts < 0, axis=1)
+    mask=np.all(wts == 0, axis=1)
 
     for i in range(len(ret)):
         if mask[i]:
