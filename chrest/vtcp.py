@@ -473,7 +473,7 @@ class VTCP:
         self.I=I
 
         
-    def get_temperature(self):
+    def get_temperature(self,OutputDirectory,ShowPlots=False):
 
         
         tcp_temperature=np.zeros([np.shape(self.I)[1],np.shape(self.I)[2]])
@@ -486,7 +486,9 @@ class VTCP:
                     
                     tcp_temperature[i,j]=self.C2*(1/self.lambda_red - 1/self.lambda_green)/(np.log(self.I[t,i,j,2]/self.I[t,i,j,1])+self.cratio+self.lambdaratio)
            
-            self.plot_temperature(tcp_temperature)            
+            self.plot_temperature(tcp_temperature,OutputDirectory / f'Temperature{t}.png', ShowPlots)
+            self.savecsv(tcp_temperature,OutputDirectory / f'Temperature{t}.csv')
+
                     
 
 
@@ -535,20 +537,20 @@ class VTCP:
             
     
             
-    def plot_temperature(self,I):
+    def plot_temperature(self,T,outputFileName,ShowPlot):
         
-        xvect=np.arange(0,I.shape[0]*self.dx,self.dx)
-        yvect=np.arange(0,I.shape[1]*self.dx,self.dx)
-        print('The temperature is '+str(I[0,0]))
+        xvect=np.arange(0,T.shape[0]*self.dx,self.dx)
+        yvect=np.arange(0,T.shape[1]*self.dx,self.dx)
+        print('The temperature is '+str(T[0,0]))
 
-        I[I==0]=np.nan
+        T[T==0]=np.nan
         mpl.rcParams['axes.linewidth'] = 2.5  # set the value globally
         mpl.rcParams.update({'figure.autolayout': True})
         from matplotlib.ticker import AutoMinorLocator
         from matplotlib import cm
         fig, ax = plt.subplots(figsize=(20, 5))
         levels = np.linspace(500,3500,100)
-        cp = ax.contourf(xvect, yvect,np.transpose(I),levels,cmap = cm.hot)
+        cp = ax.contourf(xvect, yvect,np.transpose(T),levels,cmap = cm.hot)
         cbar = fig.colorbar(cp)
         cbar.set_label(label='Temperature',size=22)
         cbar.ax.yaxis.set_tick_params(length=10,width=2.5,labelsize=18)
@@ -562,12 +564,15 @@ class VTCP:
         ax.xaxis.set_tick_params('minor', length=5, width=2.5)
         ax.yaxis.set_tick_params('minor', length=5, width=2.5)
         ax.grid()
-    
-        plt.show()
+        if(ShowPlot):
+            plt.show()
+        plt.savefig(outputFileName)
         
-    def savecsv(self):
-        
-        return 0  
+    def savecsv(self,T,outputFileName):
+        with open(outputFileName, "w+") as my_csv:
+            csvWriter = csv.writer(my_csv, delimiter=',')
+            csvWriter.writerows(T)
+
       
     def saveh5files(self):
         
@@ -638,13 +643,15 @@ if __name__ == "__main__":
         vtcp_data.sort_time(len(vtcp_data.times),filerange)
         
     import time
+    newdir = args.file.parent / (str(args.file.stem).replace("*", "") + ".chrest.vtcp")
+    newdir.mkdir(parents=True, exist_ok=True)
     for i in range(0,vtcp_data.numintervals):
         # map the ablate data to chrest
         
         start_time = time.time()
         vtcp_data.convertfield(chrest_data, field_mappings,i, component_select_names, args.max_distance)
         vtcp_data.trace_rays(chrest_data)
-        vtcp_data.get_temperature()
+        vtcp_data.get_temperature(newdir)
         # vtcp_data.get_image()
         print("--- %s seconds ---" % (time.time() - start_time))
         
@@ -662,8 +669,7 @@ if __name__ == "__main__":
     
     
     
-    newdir = args.file.parent / (str(args.file.stem).replace("*", "") + ".chrest.vtcp")
-    newdir.mkdir(parents=True, exist_ok=True)
+
     xdmf_file =  newdir / (str(args.file.stem.replace('*', '') + ".xdmf"))
 
     hdf5_paths = expand_path(newdir / os.path.basename(str(args.file)))
