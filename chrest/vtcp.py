@@ -473,7 +473,7 @@ class VTCP:
         self.I=I
 
         
-    def get_temperature(self,OutputDirectory,ShowPlots=False):
+    def get_temperature(self,OutputDirectory,ind,intlen,startind,ShowPlots=False):
 
         
         tcp_temperature=np.zeros([np.shape(self.I)[1],np.shape(self.I)[2]])
@@ -485,7 +485,7 @@ class VTCP:
                 for j in range(np.shape(self.I)[2]):
                     
                     tcp_temperature[i,j]=self.C2*(1/self.lambda_red - 1/self.lambda_green)/(np.log(self.I[t,i,j,2]/self.I[t,i,j,1])+self.cratio+self.lambdaratio)
-           
+            saveing=t+ind*intlen+int(startind)
             self.plot_temperature(tcp_temperature,OutputDirectory / f'Temperature{t}.png', ShowPlots)
             self.savecsv(tcp_temperature,OutputDirectory / f'Temperature{t}.csv')
 
@@ -651,7 +651,7 @@ if __name__ == "__main__":
         start_time = time.time()
         vtcp_data.convertfield(chrest_data, field_mappings,i, component_select_names, args.max_distance)
         vtcp_data.trace_rays(chrest_data)
-        vtcp_data.get_temperature(newdir)
+        vtcp_data.get_temperature(newdir,i, len(vtcp_data.timeitervals[0]), startind)
         # vtcp_data.get_image()
         print("--- %s seconds ---" % (time.time() - start_time))
         
@@ -662,26 +662,20 @@ if __name__ == "__main__":
 
         # # Save the result data
         # chrest_data.savepart(chrest_data_path_base, i, len(vtcp_data.timeitervals[0]), startind)
-    
-    
-    
-    
-    
-    
-    
 
-    xdmf_file =  newdir / (str(args.file.stem.replace('*', '') + ".xdmf"))
 
-    hdf5_paths = expand_path(newdir / os.path.basename(str(args.file)))
+    # xdmf_file =  newdir / (str(args.file.stem.replace('*', '') + ".xdmf"))
 
-    # generate an xdfm object
-    xdfm = XdmfGenerator()
+    # hdf5_paths = expand_path(newdir / os.path.basename(str(args.file)))
 
-    # #convert with new path
-    for hdf5_file in hdf5_paths:
-        # create component markdown
-        xdfm.append_chrest_hdf5(hdf5_file)
+    # # generate an xdfm object
+    # xdfm = XdmfGenerator()
 
-    # write the xdmf file
-    xdfm.write_to_file(xdmf_file)
+    # # #convert with new path
+    # for hdf5_file in hdf5_paths:
+    #     # create component markdown
+    #     xdfm.append_chrest_hdf5(hdf5_file)
+
+    # # write the xdmf file
+    # xdfm.write_to_file(xdmf_file)
     
