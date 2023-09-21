@@ -81,6 +81,7 @@ class AblateData:
         self.timeitervals.append(self.times.copy())
         
         self.interpolate=False
+        self.surface=False
         self.gradients=[]
         # Load in any available metadata based upon the file structure
         self.metadata['path'] = str(self.files[0])
@@ -363,75 +364,96 @@ class AblateData:
         tree = KDTree(cell_centers)
         dist, points = tree.query(chrest_cell_centers, workers=-1)
         
-        if len(self.vtx) == 0: 
-            if self.interpolate and self.gradients is None:
-                self.vtx, self.wts = interpolate.calc_interpweights_3D(cell_centers, chrest_cell_centers,self.files[0].parent)
-            elif self.gradients is not None:
-                self.vtx, self.wts, self.Wx, self.Wy, self.Wz = interpolate.calc_allweights_3D(cell_centers, chrest_cell_centers,self.files[0].parent)
-        
-        if np.size(cell_centers,1)!=3:
-            print('Warning! The code has not been tested for 2D grids...')
-        
-        # march over each field
-        idx = 0
-        for f in range(len(ablate_field_data)):
-            if not gradientfield[f]:
-                if self.interpolate:
-                    #interpolation (calculate or use precomputed weights)
-                    #ps. only do interpolation on points that are ~inside of the domain
-                    #currently ONLY 3D interpolation is supported
-                    ablate_field_in_chrest_order = np.zeros_like(ablate_field_data[f][:, points])
-                    for t in range(len(ablate_field_in_chrest_order)):
-                        if len(ablate_field_data[f].shape)>2:
-                            for ii in range(ablate_field_data[f].shape[2]):
-                                fielddata=ablate_field_data[f][t]
-                                ablate_field_in_chrest_order[t,:,ii] = np.reshape(interpolate.interpolate3D(self.vtx,self.wts,fielddata[:,ii],points),(1,self.vtx.shape[0]))
-                        else:
-                            fielddata=np.transpose(ablate_field_data[f][:])
-                            ablate_field_in_chrest_order[t,:] = np.reshape(interpolate.interpolate3D(self.vtx,self.wts,fielddata[:,t],points),(1,self.vtx.shape[0]))
-                else:  
-                    # closest node 
-                    ablate_field_in_chrest_order = ablate_field_data[f][:, points]
-                
+        if self.surface:
+            for f in range(len(ablate_field_data)):
+                # get in the correct order
+                ablate_field_in_chrest_order = ablate_field_data[f][:, points]
+            
                 setToZero = np.where(dist > max_distance)
-                closestpoints=(np.array(points[setToZero]),)
-                ablate_field_in_chrest_order[:, setToZero] = ablate_field_data[f][:, closestpoints]
-                
+            
+                ablate_field_in_chrest_order[:, setToZero] = 0.0
+            
                 # reshape it back to k,j,i
                 ablate_field_in_chrest_order = ablate_field_in_chrest_order.reshape(
                     chrest_field_data[f].shape
                 )
-                
+            
                 # copy over the data
                 chrest_field_data[f][:] = ablate_field_in_chrest_order[:]
             
-            else:
-                # calculating the gradients
-                ablate_field_in_chrest_order = np.zeros((ablate_field_data[f][:, points].shape[0],ablate_field_data[f][:, points].shape[1],3))
-                for t in range(len(ablate_field_in_chrest_order)):
-                    fielddata=ablate_field_data[f][t]
+            # copy over the metadata
+            chrest_data.metadata = self.metadata
+        
+        else:
+            if len(self.vtx) == 0: 
+                if self.interpolate and self.gradients is None:
+                    self.vtx, self.wts = interpolate.calc_interpweights_3D(cell_centers, chrest_cell_centers,self.files[0].parent)
+                elif self.gradients is not None:
+                    self.vtx, self.wts, self.Wx, self.Wy, self.Wz = interpolate.calc_allweights_3D(cell_centers, chrest_cell_centers,self.files[0].parent)
+            
+            if np.size(cell_centers,1)!=3:
+                print('Warning! The code has not been tested for 2D grids...')
+            
+            # march over each field
+            idx = 0
+            for f in range(len(ablate_field_data)):
+                if not gradientfield[f]:
+                    if self.interpolate:
+                        #interpolation (calculate or use precomputed weights)
+                        #ps. only do interpolation on points that are ~inside of the domain
+                        #currently ONLY 3D interpolation is supported
+                        ablate_field_in_chrest_order = np.zeros_like(ablate_field_data[f][:, points])
+                        for t in range(len(ablate_field_in_chrest_order)):
+                            if len(ablate_field_data[f].shape)>2:
+                                for ii in range(ablate_field_data[f].shape[2]):
+                                    fielddata=ablate_field_data[f][t]
+                                    ablate_field_in_chrest_order[t,:,ii] = np.reshape(interpolate.interpolate3D(self.vtx,self.wts,fielddata[:,ii],points),(1,self.vtx.shape[0]))
+                            else:
+                                fielddata=np.transpose(ablate_field_data[f][:])
+                                ablate_field_in_chrest_order[t,:] = np.reshape(interpolate.interpolate3D(self.vtx,self.wts,fielddata[:,t],points),(1,self.vtx.shape[0]))
+                    else:  
+                        # closest node 
+                        ablate_field_in_chrest_order = ablate_field_data[f][:, points]
                     
-                    ablate_field_in_chrest_order[t,:,0] = np.reshape(interpolate.grad(fielddata[:],self.vtx,self.Wx),(1,self.vtx.shape[0]))
-                    ablate_field_in_chrest_order[t,:,1] = np.reshape(interpolate.grad(fielddata[:],self.vtx,self.Wy),(1,self.vtx.shape[0]))
-                    ablate_field_in_chrest_order[t,:,2] = np.reshape(interpolate.grad(fielddata[:],self.vtx,self.Wz),(1,self.vtx.shape[0]))
+                    setToZero = np.where(dist > max_distance)
+                    closestpoints=(np.array(points[setToZero]),)
+                    ablate_field_in_chrest_order[:, setToZero] = ablate_field_data[f][:, closestpoints]
+                    
+                    # reshape it back to k,j,i
+                    ablate_field_in_chrest_order = ablate_field_in_chrest_order.reshape(
+                        chrest_field_data[f].shape
+                    )
+                    
+                    # copy over the data
+                    chrest_field_data[f][:] = ablate_field_in_chrest_order[:]
                 
-                setToZero = np.where(dist > max_distance)
-                ablate_field_in_chrest_order[:, setToZero] = 0.0                 
+                else:
+                    # calculating the gradients
+                    ablate_field_in_chrest_order = np.zeros((ablate_field_data[f][:, points].shape[0],ablate_field_data[f][:, points].shape[1],3))
+                    for t in range(len(ablate_field_in_chrest_order)):
+                        fielddata=ablate_field_data[f][t]
+                        
+                        ablate_field_in_chrest_order[t,:,0] = np.reshape(interpolate.grad(fielddata[:],self.vtx,self.Wx),(1,self.vtx.shape[0]))
+                        ablate_field_in_chrest_order[t,:,1] = np.reshape(interpolate.grad(fielddata[:],self.vtx,self.Wy),(1,self.vtx.shape[0]))
+                        ablate_field_in_chrest_order[t,:,2] = np.reshape(interpolate.grad(fielddata[:],self.vtx,self.Wz),(1,self.vtx.shape[0]))
+                    
+                    setToZero = np.where(dist > max_distance)
+                    ablate_field_in_chrest_order[:, setToZero] = 0.0               
+                    
+                    # using scipy built in interpolator, impractical for normal size grids, takes really long...
+                    # ablate_field_in_chrest_order = griddata((cell_centers[:,0],cell_centers[:,1],cell_centers[:,2]), ablate_field_data[f].T, (chrest_cell_centers), method='linear')
+        
+                    # reshape it back to k,j,i
+                    ablate_field_in_chrest_order = ablate_field_in_chrest_order.reshape(
+                        chrest_field_data[f].shape
+                    )
+                    
+                    # copy over the data
+                    chrest_field_data[f][:] = ablate_field_in_chrest_order[:]
                 
-                # using scipy built in interpolator, impractical for normal size grids, takes really long...
-                # ablate_field_in_chrest_order = griddata((cell_centers[:,0],cell_centers[:,1],cell_centers[:,2]), ablate_field_data[f].T, (chrest_cell_centers), method='linear')
-    
-                # reshape it back to k,j,i
-                ablate_field_in_chrest_order = ablate_field_in_chrest_order.reshape(
-                    chrest_field_data[f].shape
-                )
-                
-                # copy over the data
-                chrest_field_data[f][:] = ablate_field_in_chrest_order[:]
-            
-            idx+=1
-        # copy over the metadata
-        chrest_data.metadata = self.metadata
+                idx+=1
+            # copy over the metadata
+            chrest_data.metadata = self.metadata
 
 
 # parse based upon the supplied inputs
@@ -480,6 +502,9 @@ if __name__ == "__main__":
     parser.add_argument('--interpolate', dest='interpolate', action='store_true',
                         help="Whether you would like to interpolate or not. Currently only available for 3D.",
                         )
+    parser.add_argument('--surface', dest='surf', action='store_true',
+                        help="Whether you are trying to access files from the surface monitor.",
+                        )    
     
     parser.add_argument('--gradients', dest='gradients', type=str,
                         help='The list of fields in ablate output format  --gradients '
@@ -507,7 +532,10 @@ if __name__ == "__main__":
             component_select_names[field_mapping_list[0]] = field_mapping_list[2].split(',')
             
     #determine if you want ot interpolate
-    ablate_data.interpolate=int(args.interpolate)    
+    ablate_data.interpolate=int(args.interpolate)
+
+    #determine if you want ot interpolate
+    ablate_data.surface=int(args.surf)    
     
     #determine fields for gradients
     if args.gradients is not None:
