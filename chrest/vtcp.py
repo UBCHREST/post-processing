@@ -420,7 +420,7 @@ class VTCP:
         
         # for debug purposes
         # Temp[:]= 2000
-        fv[:] = 1e-6
+        # fv[:] = 1e-6
         
         
         I=np.zeros([np.shape(Temp)[0],np.shape(Temp)[indx],np.shape(Temp)[indy],4])        
@@ -429,7 +429,7 @@ class VTCP:
         #this code assumes everything is in chrest fromat thus dx=0.25mm
         dx=chrest_data.delta[0]
         self.dx=dx
-        
+        # if self.orientation=='side':
         for t in range(np.shape(Temp)[0]):
             for i in range(np.shape(Temp)[indx]):
                 for j in range(np.shape(Temp)[indy]):
@@ -440,27 +440,35 @@ class VTCP:
                     Kappa=[0,0,0,0]
                     blackbody=[0,0,0,0]
                     expofunc=[0,0,0,0]
-                    
                     for k in range(np.shape(Temp)[indz]):
-                        # if Temp[t,k,j,i]==0:
-                        #     print('temperature is 0 at i='+ str(i)+' j='+str(j)+' k='+str(k))
-                        Kappa[0]=3.72*fv[t,k,j,i]*self.C0*Temp[t,k,j,i]/self.C2
-                        Kappa[1]=self.C0*fv[t,k,j,i]/self.lambda_red
-                        Kappa[2]=self.C0*fv[t,k,j,i]/self.lambda_green
-                        Kappa[3]=self.C0*fv[t,k,j,i]/self.lambda_blue
                         
-                        # dx=0.025
+                        i=50
+                        j=3
+                        k=2
+                        
+                        if self.orientation=='top':
+                            intIdx = (j,k)
+                        elif self.orientation=='side':
+                            intIdx = (k,j)
+                        else:
+                            print("the orientation is not supported...")
+                        
+                        
+                        
+                        Kappa[0]=3.72*fv[t][intIdx][i]*self.C0*Temp[t][intIdx][i]/self.C2
+                        Kappa[1]=self.C0*fv[t][intIdx][i]/self.lambda_red
+                        Kappa[2]=self.C0*fv[t][intIdx][i]/self.lambda_green
+                        Kappa[3]=self.C0*fv[t][intIdx][i]/self.lambda_blue
                         
                         expofunc[0] = np.exp(-1*(Kappa[0]*dx))
                         expofunc[1] = np.exp(-1*(Kappa[1]*dx))
                         expofunc[2] = np.exp(-1*(Kappa[2]*dx))
                         expofunc[3] = np.exp(-1*(Kappa[3]*dx))
                         
-                        blackbody[0] = self.SBC*Temp[t,k,j,i]**4 / np.pi
-                        blackbody[1] = (2*self.c**2)/(self.lambda_red**5*np.exp(self.C2/(self.lambda_red*Temp[t,k,j,i]))) 
-                        blackbody[2] = (2*self.c**2)/(self.lambda_green**5*np.exp(self.C2/(self.lambda_green*Temp[t,k,j,i])))
-                        blackbody[3] = (2*self.c**2)/(self.lambda_blue**5*np.exp(self.C2/(self.lambda_blue*Temp[t,k,j,i])))
-                        
+                        blackbody[0] = self.SBC*Temp[t][intIdx][i]**4 / np.pi
+                        blackbody[1] = (2*self.c**2)/(self.lambda_red**5*np.exp(self.C2/(self.lambda_red*Temp[t][intIdx][i]))) 
+                        blackbody[2] = (2*self.c**2)/(self.lambda_green**5*np.exp(self.C2/(self.lambda_green*Temp[t][intIdx][i])))
+                        blackbody[3] = (2*self.c**2)/(self.lambda_blue**5*np.exp(self.C2/(self.lambda_blue*Temp[t][intIdx][i])))
                         
                         # Itrace.append(self.SBC*Temp[t,i,j,k]**4/np.pi*(1-np.exp(-Kappa*dx)))
                         Itrace = Itrace*expofunc[0] + blackbody[0]*(1-expofunc[0])
@@ -486,54 +494,9 @@ class VTCP:
                     
                     tcp_temperature[i,j]=self.C2*(1/self.lambda_red - 1/self.lambda_green)/(np.log(self.I[t,i,j,2]/self.I[t,i,j,1])+self.cratio+self.lambdaratio)
             saveing=t+ind*intlen+int(startind)
-            self.plot_temperature(tcp_temperature,OutputDirectory / f'Temperature{t}.png', ShowPlots)
-            self.savecsv(tcp_temperature,OutputDirectory / f'Temperature{t}.csv')
+            self.plot_temperature(tcp_temperature,OutputDirectory / f'Temperature_{self.orientation}_{saveing}.png', ShowPlots)
+            self.savecsv(tcp_temperature,OutputDirectory / f'Temperature_{self.orientation}_{saveing}.png')
 
-                    
-
-
-            # ratio = data[1, :, :, :, :] / data[0, :, :, :, :]
-            # ratio = np.nan_to_num(ratio)
-            # tcp_temperature = np.zeros_like(ratio, dtype=np.dtype(float))
-
-            # for n in range(np.shape(data)[1]):
-            #     for i in range(np.shape(data)[2]):
-            #         for j in range(np.shape(data)[3]):
-            #             for k in range(np.shape(data)[4]):
-            #                 if data[0, n, i, j, k] < threshold_fraction * np.max(data[0, n, :, :, :]) \
-            #                         or data[1, n, i, j, k] < threshold_fraction * np.max(data[1, n, :, :, :]):
-            #                     tcp_temperature[n, i, j, k] = 0
-            #                 elif ratio[n, i, j, k] != 0:
-            #                     tcp_temperature[n, i, j, k] = (c2 * ((1. / lambdaR) - (1. / lambdaG))) / (
-            #                             np.log(ratio[n, i, j, k]) + np.log((lambdaG / lambdaR) ** 5))
-
-            #                 if tcp_temperature[n, i, j, k] < 300:
-            #                     tcp_temperature[n, i, j, k] = 300
-
-            # # Assign the computed temperatures to the corresponding class variable
-            # if data_type == 'front':
-            #     self.front_tcp_temperature = tcp_temperature
-            # else:
-            #     self.top_tcp_temperature = tcp_temperature
-
-    # Get the size of a single mesh.
-    # Iterate through the time steps
-    # Iterate through each time step and place a point on the plot
-    
-    # def get_optical_thickness(self, dns_data):
-    #     # Calculate the optical thickness of the frame
-    #     # First get the absorption for each cell in the dns
-    #     dns_temperature, _, _ = dns_data.get_field(self.dns_temperature_name)
-    #     if self.dns_soot is None:
-    #         self.get_dns_soot(dns_data)
-    #     kappa = (3.72 * self.dns_soot * self.C_0 * dns_temperature) / self.C_2  # Soot mean absorption
-    #     # Then sum the absorption through all cells in the ray line
-    #     axis_values = [1, 2]
-    #     optical_thickness_attributes = ['front_dns_optical_thickness', 'top_dns_optical_thickness']
-
-    #     for axis, attribute in zip(axis_values, optical_thickness_attributes):
-    #         dns_sum_soot = kappa.sum(axis=axis, keepdims=True)
-    #         setattr(self, attribute, dns_sum_soot * dns_data.delta[2 - axis])
             
     
             
@@ -549,7 +512,7 @@ class VTCP:
         from matplotlib.ticker import AutoMinorLocator
         from matplotlib import cm
         fig, ax = plt.subplots(figsize=(20, 5))
-        levels = np.linspace(500,3500,100)
+        levels = np.linspace(1800,3500,100)
         cp = ax.contourf(xvect, yvect,np.transpose(T),levels,cmap = cm.hot)
         cbar = fig.colorbar(cp)
         cbar.set_label(label='Temperature',size=22)
@@ -596,6 +559,9 @@ if __name__ == "__main__":
     parser.add_argument('--filerange', dest='filerange', type=float,
                         help="The first and last files that the user want to process in the directory default is: [0 -1]",
                         nargs='+')
+    
+    parser.add_argument('--orientation', dest='orientation', type=str,
+                        help="Either top or side")
    
 
     args = parser.parse_args()
@@ -603,7 +569,7 @@ if __name__ == "__main__":
     # this is some example code for chest file post-processing
     vtcp_data = VTCP(args.file)
     print('Starting virtual tcp.')
-
+    
 
     # list the fields to map
     field_mappings = dict()
@@ -615,8 +581,7 @@ if __name__ == "__main__":
 
         # check to see if there are select components
         if len(field_mapping_list) > 2:
-            component_select_names[field_mapping_list[0]] = field_mapping_list[2].split(',')
-     
+            component_select_names[field_mapping_list[0]] = field_mapping_list[2].split(',') 
         
     # create a chrest data
     delta=[0.001, 0.001, 0.001]
@@ -641,7 +606,11 @@ if __name__ == "__main__":
             print("The code processes " + str(len(vtcp_data.times)) + " files at a time.")
     else:
         vtcp_data.sort_time(len(vtcp_data.times),filerange)
-        
+    
+    vtcp_data.orientation='side'
+    if args.orientation is not None:
+        vtcp_data.orientation=args.orientation    
+    
     import time
     newdir = args.file.parent / (str(args.file.stem).replace("*", "") + ".chrest.vtcp")
     newdir.mkdir(parents=True, exist_ok=True)
@@ -655,27 +624,5 @@ if __name__ == "__main__":
         # vtcp_data.get_image()
         print("--- %s seconds ---" % (time.time() - start_time))
         
-        # # write the new file without wild card
-        # chrest_data_path_base = args.file.parent / (str(args.file.stem).replace("*", "") + ".chrest")
-        # chrest_data_path_base.mkdir(parents=True, exist_ok=True)
-        # chrest_data_path_base = chrest_data_path_base / (str(args.file.stem).replace("*", "") + ".chrest")
 
-        # # Save the result data
-        # chrest_data.savepart(chrest_data_path_base, i, len(vtcp_data.timeitervals[0]), startind)
-
-
-    # xdmf_file =  newdir / (str(args.file.stem.replace('*', '') + ".xdmf"))
-
-    # hdf5_paths = expand_path(newdir / os.path.basename(str(args.file)))
-
-    # # generate an xdfm object
-    # xdfm = XdmfGenerator()
-
-    # # #convert with new path
-    # for hdf5_file in hdf5_paths:
-    #     # create component markdown
-    #     xdfm.append_chrest_hdf5(hdf5_file)
-
-    # # write the xdmf file
-    # xdfm.write_to_file(xdmf_file)
     
