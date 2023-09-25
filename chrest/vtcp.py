@@ -475,7 +475,7 @@ class VTCP:
         self.I=I
 
         
-    def get_temperature(self,OutputDirectory,ind,intlen,startind,PRFMatrix,dt,ShowPlots=False):
+    def get_temperature(self,OutputDirectory,ind,intlen,startind,dt,PRFMatrix,ShowPlots=False):
 
         
         tcp_temperature=np.zeros([np.shape(self.I)[1],np.shape(self.I)[2]])
@@ -558,7 +558,7 @@ class VTCP:
         from matplotlib.ticker import AutoMinorLocator
         from matplotlib import cm
         fig, ax = plt.subplots(figsize=(20, 5))
-        levels = np.linspace(600,3500,100)
+        levels = np.linspace(1800,3500,100)
         cp = ax.contourf(xvect, yvect,np.transpose(T),levels,cmap = cm.hot)
         cbar = fig.colorbar(cp)
         cbar.set_label(label='Temperature',size=22)
@@ -596,6 +596,9 @@ if __name__ == "__main__":
 
     parser.add_argument('--max_distance', dest='max_distance', type=float,
                         help="The max distance to search for a point in ablate", default=sys.float_info.max)
+    
+    parser.add_argument('--dt', dest='dt', type=float,
+                        help="Exposure time (incorporate changed aperature if aperature is different than calibration", default=5e-4)
 
     parser.add_argument('--batchsize', dest='batchsize', type=float,
                         help="The number of files to be loaded in at once")
@@ -671,7 +674,7 @@ if __name__ == "__main__":
         start_time = time.time()
         vtcp_data.convertfield(chrest_data, field_mappings,i, component_select_names, args.max_distance)
         vtcp_data.trace_rays(chrest_data)
-        vtcp_data.get_temperature(newdir,i, len(vtcp_data.timeitervals[0]), startind,PRFMatrix=PRFMatrix,dt=5e-4)
+        vtcp_data.get_temperature(newdir,i, len(vtcp_data.timeitervals[0]),startind,args.dt,PRFMatrix=PRFMatrix)
         # vtcp_data.get_image()
         print("--- %s seconds ---" % (time.time() - start_time))
         
