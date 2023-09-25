@@ -71,8 +71,9 @@ class VTCP:
         k=0.71
         self.C2=1.4388e-2
         self.C0=36*np.pi*n*k/((n**2-k**2+2)**2 + 4*n**2*k**2)
-        self.C0_red=4.24
-        self.C0_green=4.55
+        self.C0_red=4.24 #n and k from Felske
+        self.C0_green=4.55  #n and k from Felske
+        self.C0_blue=4.825  #n and k calculate from modest eq. 12.116a and 12.116b
         self.lambda_red=650e-9
         self.lambda_green=532e-9
         self.lambda_blue=410e-9
@@ -420,11 +421,9 @@ class VTCP:
         
         # for debug purposes
         # Temp[:]= 2000
-        # fv[:] = 1e-6
-        
-        
+        # fv[:] = 1e-7
+
         I=np.zeros([np.shape(Temp)[0],np.shape(Temp)[indx],np.shape(Temp)[indy],4])        
-        
         
         #this code assumes everything is in chrest fromat thus dx=0.25mm
         dx=chrest_data.delta[0]
@@ -442,10 +441,6 @@ class VTCP:
                     expofunc=[0,0,0,0]
                     for k in range(np.shape(Temp)[indz]):
                         
-                        i=50
-                        j=3
-                        k=2
-                        
                         if self.orientation=='top':
                             intIdx = (j,k)
                         elif self.orientation=='side':
@@ -454,11 +449,10 @@ class VTCP:
                             print("the orientation is not supported...")
                         
                         
-                        
                         Kappa[0]=3.72*fv[t][intIdx][i]*self.C0*Temp[t][intIdx][i]/self.C2
-                        Kappa[1]=self.C0*fv[t][intIdx][i]/self.lambda_red
-                        Kappa[2]=self.C0*fv[t][intIdx][i]/self.lambda_green
-                        Kappa[3]=self.C0*fv[t][intIdx][i]/self.lambda_blue
+                        Kappa[1]=self.C0_red*fv[t][intIdx][i]/self.lambda_red
+                        Kappa[2]=self.C0_green*fv[t][intIdx][i]/self.lambda_green
+                        Kappa[3]=self.C0_blue*fv[t][intIdx][i]/self.lambda_blue
                         
                         expofunc[0] = np.exp(-1*(Kappa[0]*dx))
                         expofunc[1] = np.exp(-1*(Kappa[1]*dx))
@@ -466,9 +460,9 @@ class VTCP:
                         expofunc[3] = np.exp(-1*(Kappa[3]*dx))
                         
                         blackbody[0] = self.SBC*Temp[t][intIdx][i]**4 / np.pi
-                        blackbody[1] = (2*self.c**2)/(self.lambda_red**5*np.exp(self.C2/(self.lambda_red*Temp[t][intIdx][i]))) 
-                        blackbody[2] = (2*self.c**2)/(self.lambda_green**5*np.exp(self.C2/(self.lambda_green*Temp[t][intIdx][i])))
-                        blackbody[3] = (2*self.c**2)/(self.lambda_blue**5*np.exp(self.C2/(self.lambda_blue*Temp[t][intIdx][i])))
+                        blackbody[1] = (2*self.h*self.c**2)/(self.lambda_red**5*(np.exp(self.C2/(self.lambda_red*Temp[t][intIdx][i]))-1))
+                        blackbody[2] = (2*self.h*self.c**2)/(self.lambda_green**5*(np.exp(self.C2/(self.lambda_green*Temp[t][intIdx][i]))-1))
+                        blackbody[3] = (2*self.h*self.c**2)/(self.lambda_blue**5*(np.exp(self.C2/(self.lambda_blue*Temp[t][intIdx][i]))-1))
                         
                         # Itrace.append(self.SBC*Temp[t,i,j,k]**4/np.pi*(1-np.exp(-Kappa*dx)))
                         Itrace = Itrace*expofunc[0] + blackbody[0]*(1-expofunc[0])
@@ -481,7 +475,7 @@ class VTCP:
         self.I=I
 
         
-    def get_temperature(self,OutputDirectory,ind,intlen,startind,ShowPlots=False):
+    def get_temperature(self,OutputDirectory,ind,intlen,startind,PRFMatrix,dt,ShowPlots=False):
 
         
         tcp_temperature=np.zeros([np.shape(self.I)[1],np.shape(self.I)[2]])
@@ -495,10 +489,62 @@ class VTCP:
                     tcp_temperature[i,j]=self.C2*(1/self.lambda_red - 1/self.lambda_green)/(np.log(self.I[t,i,j,2]/self.I[t,i,j,1])+self.cratio+self.lambdaratio)
             saveing=t+ind*intlen+int(startind)
             self.plot_temperature(tcp_temperature,OutputDirectory / f'Temperature_{self.orientation}_{saveing}.png', ShowPlots)
-            self.savecsv(tcp_temperature,OutputDirectory / f'Temperature_{self.orientation}_{saveing}.png')
-
-            
+            self.savecsv(tcp_temperature,OutputDirectory / f'Temperature_{self.orientation}_{saveing}.csv')
+            if not PRFMatrix is None:
+                self.plotPicture(PRFMatrix,self.I[t],dt,OutputDirectory / f'ReconstructedImage_{self.orientation}_{saveing}.png')
     
+                
+    # def plotPicture(self,PRFMatrix,Intensities,dt,outputFileName,ShowPlot = False):
+    #     Intshape = np.shape(Intensities)
+    #     # Time, i, J, RGB
+    #     RGBVals = np.zeros((Intshape[0],Intshape[2],Intshape[1],3)).astype(int)
+    #     lnedtArray = np.zeros((Intshape[0], Intshape[1], Intshape[2], 3))
+    #     for t in range(Intshape[0]):
+    #         for i in range(Intshape[1]):
+    #             for j in range(Intshape[2]):
+    #                 for RGB in range(3):
+    #                     if( Intensities[t,i,j,RGB+1] == 0):
+    #                         lnedt = -1000
+    #                     else:
+    #                         lnedt = np.log(Intensities[t,i,j,RGB+1]*dt)
+    #                     lnedtArray[t,i,j,RGB] = lnedt
+    #                     #Now Determine at which Byte value lnEDT is closest in PRFMatrix[RGB,:]
+    #                     Diff = np.abs(PRFMatrix[:,RGB] - lnedt)
+    #                     Closestidx = Diff.argmin();
+    #                     RGBVals[t,Intshape[2]-j-1,i,RGB] = Closestidx
+    #         #plt show
+    #         fig,ax = plt.subplots(figsize =(7,3))
+    #         ax.imshow(RGBVals[t])
+    #         if(ShowPlot):
+    #             fig.show()
+    #         fig.savefig(outputFileName)
+    #         print("The rgb of the first pixel is "+ str(RGBVals[t,0,0,:]))
+
+    def plotPicture(self,PRFMatrix,Intensities,dt,outputFileName,ShowPlot = False):
+        Intshape = np.shape(Intensities)
+        # Time, i, J, RGB
+        RGBVals = np.zeros((Intshape[1],Intshape[0],3)).astype(int)
+        lnedtArray = np.zeros((Intshape[0], Intshape[1], 3))
+
+        for i in range(Intshape[0]):
+            for j in range(Intshape[1]):
+                for RGB in range(3):
+                    if( Intensities[i,j,RGB+1] == 0):
+                        lnedt = -1000
+                    else:
+                        lnedt = np.log(Intensities[i,j,RGB+1]*dt)
+                    lnedtArray[i,j,RGB] = lnedt
+                    #Now Determine at which Byte value lnEDT is closest in PRFMatrix[RGB,:]
+                    Diff = np.abs(PRFMatrix[:,RGB] - lnedt)
+                    Closestidx = Diff.argmin();
+                    RGBVals[Intshape[1]-j-1,i,RGB] = Closestidx
+        #plt show
+        fig,ax = plt.subplots(figsize =(7,3))
+        ax.imshow(RGBVals)
+        if(ShowPlot):
+            fig.show()
+        fig.savefig(outputFileName)
+        print("The rgb of the first pixel is "+ str(RGBVals[0,0,:]))    
             
     def plot_temperature(self,T,outputFileName,ShowPlot):
         
@@ -512,7 +558,7 @@ class VTCP:
         from matplotlib.ticker import AutoMinorLocator
         from matplotlib import cm
         fig, ax = plt.subplots(figsize=(20, 5))
-        levels = np.linspace(1800,3500,100)
+        levels = np.linspace(600,3500,100)
         cp = ax.contourf(xvect, yvect,np.transpose(T),levels,cmap = cm.hot)
         cbar = fig.colorbar(cp)
         cbar.set_label(label='Temperature',size=22)
@@ -541,8 +587,6 @@ class VTCP:
         
         return 0
 
-
-# parse based upon the supplied inputs
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate a chrest data file from an ablate file')
     parser.add_argument('--file', dest='file', type=pathlib.Path, required=True,
@@ -614,13 +658,20 @@ if __name__ == "__main__":
     import time
     newdir = args.file.parent / (str(args.file.stem).replace("*", "") + ".chrest.vtcp")
     newdir.mkdir(parents=True, exist_ok=True)
+    #Load in PRF data if wanted
+    # PRFLocation = "C:\\Kolos\\research\\tcp\\test\\Images\\PRF_Color.dat"
+    PRFLocation = os.path.join(os.getcwd(), "PRF_Color.dat")
+    from numpy import genfromtxt
+    PRFMatrix = genfromtxt(PRFLocation,delimiter=',')
+
+
     for i in range(0,vtcp_data.numintervals):
         # map the ablate data to chrest
         
         start_time = time.time()
         vtcp_data.convertfield(chrest_data, field_mappings,i, component_select_names, args.max_distance)
         vtcp_data.trace_rays(chrest_data)
-        vtcp_data.get_temperature(newdir,i, len(vtcp_data.timeitervals[0]), startind)
+        vtcp_data.get_temperature(newdir,i, len(vtcp_data.timeitervals[0]), startind,PRFMatrix=PRFMatrix,dt=5e-4)
         # vtcp_data.get_image()
         print("--- %s seconds ---" % (time.time() - start_time))
         
