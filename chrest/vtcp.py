@@ -80,7 +80,8 @@ class VTCP:
         self.SBC=5.6696e-8 #Stephan-Boltzman constant
         self.c = 3e8
         self.h = 6.626e-34
-        
+
+        self.dt=0        
         
         self.cratio=np.log(4.24/4.55)
         self.lambdaratio=np.log((self.lambda_green/self.lambda_red)**6)
@@ -493,32 +494,15 @@ class VTCP:
             if not PRFMatrix is None:
                 self.plotPicture(PRFMatrix,self.I[t],dt,OutputDirectory / f'ReconstructedImage_{self.orientation}_{saveing}.png')
     
-                
-    # def plotPicture(self,PRFMatrix,Intensities,dt,outputFileName,ShowPlot = False):
-    #     Intshape = np.shape(Intensities)
-    #     # Time, i, J, RGB
-    #     RGBVals = np.zeros((Intshape[0],Intshape[2],Intshape[1],3)).astype(int)
-    #     lnedtArray = np.zeros((Intshape[0], Intshape[1], Intshape[2], 3))
-    #     for t in range(Intshape[0]):
-    #         for i in range(Intshape[1]):
-    #             for j in range(Intshape[2]):
-    #                 for RGB in range(3):
-    #                     if( Intensities[t,i,j,RGB+1] == 0):
-    #                         lnedt = -1000
-    #                     else:
-    #                         lnedt = np.log(Intensities[t,i,j,RGB+1]*dt)
-    #                     lnedtArray[t,i,j,RGB] = lnedt
-    #                     #Now Determine at which Byte value lnEDT is closest in PRFMatrix[RGB,:]
-    #                     Diff = np.abs(PRFMatrix[:,RGB] - lnedt)
-    #                     Closestidx = Diff.argmin();
-    #                     RGBVals[t,Intshape[2]-j-1,i,RGB] = Closestidx
-    #         #plt show
-    #         fig,ax = plt.subplots(figsize =(7,3))
-    #         ax.imshow(RGBVals[t])
-    #         if(ShowPlot):
-    #             fig.show()
-    #         fig.savefig(outputFileName)
-    #         print("The rgb of the first pixel is "+ str(RGBVals[t,0,0,:]))
+    def saveintensities(self,OutputDirectory,ind,intlen,startind):
+        
+        for t in range(np.shape(self.I)[0]):
+            saveing=t+ind*intlen+int(startind)
+
+            self.savecsv(self.I[t,:,:,1],OutputDirectory / f'Intensity_red_{self.orientation}_{saveing}.csv')
+            self.savecsv(self.I[t,:,:,2],OutputDirectory / f'Intensity_green_{self.orientation}_{saveing}.csv')
+            self.savecsv(self.I[t,:,:,3],OutputDirectory / f'Intensity_blue_{self.orientation}_{saveing}.csv')    
+        
 
     def plotPicture(self,PRFMatrix,Intensities,dt,outputFileName,ShowPlot = False):
         Intshape = np.shape(Intensities)
@@ -572,7 +556,7 @@ class VTCP:
         ax.yaxis.set_tick_params(length=10, width=2.5, labelsize=18)
         ax.xaxis.set_tick_params('minor', length=5, width=2.5)
         ax.yaxis.set_tick_params('minor', length=5, width=2.5)
-        ax.grid()
+        # ax.grid()
         if(ShowPlot):
             plt.show()
         plt.savefig(outputFileName)
@@ -609,6 +593,10 @@ if __name__ == "__main__":
     
     parser.add_argument('--orientation', dest='orientation', type=str,
                         help="Either top or side")
+    
+    parser.add_argument('--delta', dest='delta', type=float,
+                        help='Optional grid spacing for chrest data. Default is [0.00025, 0.00025, 0.00025]',
+                        nargs='+', default=[0.00025, 0.00025, 0.00025])
    
 
     args = parser.parse_args()
@@ -631,7 +619,7 @@ if __name__ == "__main__":
             component_select_names[field_mapping_list[0]] = field_mapping_list[2].split(',') 
         
     # create a chrest data
-    delta=[0.001, 0.001, 0.001]
+    delta=args.delta
     end=[0.1, 0.0256, 0.0128]
     start=[0., 0.0, -0.0128]
     chrest_data = ChrestData()
@@ -661,12 +649,17 @@ if __name__ == "__main__":
     import time
     newdir = args.file.parent / (str(args.file.stem).replace("*", "") + ".chrest.vtcp")
     newdir.mkdir(parents=True, exist_ok=True)
+    
+    newdir_int = args.file.parent / (str(args.file.stem).replace("*", "") + ".chrest.vtcp_intensity")
+    newdir_int.mkdir(parents=True, exist_ok=True)
+    
     #Load in PRF data if wanted
     # PRFLocation = "C:\\Kolos\\research\\tcp\\test\\Images\\PRF_Color.dat"
     PRFLocation = os.path.join(os.getcwd(), "PRF_Color.dat")
     from numpy import genfromtxt
     PRFMatrix = genfromtxt(PRFLocation,delimiter=',')
 
+    vtcp_data.dt=args.dt
 
     for i in range(0,vtcp_data.numintervals):
         # map the ablate data to chrest
@@ -675,6 +668,7 @@ if __name__ == "__main__":
         vtcp_data.convertfield(chrest_data, field_mappings,i, component_select_names, args.max_distance)
         vtcp_data.trace_rays(chrest_data)
         vtcp_data.get_temperature(newdir,i, len(vtcp_data.timeitervals[0]),startind,args.dt,PRFMatrix=PRFMatrix)
+        vtcp_data.saveintensities(newdir_int,i, len(vtcp_data.timeitervals[0]),startind)
         # vtcp_data.get_image()
         print("--- %s seconds ---" % (time.time() - start_time))
         
