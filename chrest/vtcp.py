@@ -90,7 +90,9 @@ class VTCP:
         
         # load the metadata from the first file
         self.metadata = dict()
-
+        
+        # if interpolate:
+                
         # Open each file to get the time and check the available fields
         for file in self.files:
             # Load in the hdf5 file
@@ -421,8 +423,8 @@ class VTCP:
         indz=1
         
         # for debug purposes
-        # Temp[:]= 2000
-        # fv[:] = 1e-7
+        # Temp[:]= 2232
+        # fv[:] = 9.06e-12
 
         I=np.zeros([np.shape(Temp)[0],np.shape(Temp)[indx],np.shape(Temp)[indy],4])        
         
@@ -461,9 +463,9 @@ class VTCP:
                         expofunc[3] = np.exp(-1*(Kappa[3]*dx))
                         
                         blackbody[0] = self.SBC*Temp[t][intIdx][i]**4 / np.pi
-                        blackbody[1] = (2*self.h*self.c**2)/(self.lambda_red**5*(np.exp(self.C2/(self.lambda_red*Temp[t][intIdx][i]))-1))
-                        blackbody[2] = (2*self.h*self.c**2)/(self.lambda_green**5*(np.exp(self.C2/(self.lambda_green*Temp[t][intIdx][i]))-1))
-                        blackbody[3] = (2*self.h*self.c**2)/(self.lambda_blue**5*(np.exp(self.C2/(self.lambda_blue*Temp[t][intIdx][i]))-1))
+                        blackbody[1] = (2*self.h*self.c**2*np.pi)/(self.lambda_red**5*(np.exp(self.C2/(self.lambda_red*Temp[t][intIdx][i]))-1))
+                        blackbody[2] = (2*self.h*self.c**2*np.pi)/(self.lambda_green**5*(np.exp(self.C2/(self.lambda_green*Temp[t][intIdx][i]))-1))
+                        blackbody[3] = (2*self.h*self.c**2*np.pi)/(self.lambda_blue**5*(np.exp(self.C2/(self.lambda_blue*Temp[t][intIdx][i]))-1))
                         
                         # Itrace.append(self.SBC*Temp[t,i,j,k]**4/np.pi*(1-np.exp(-Kappa*dx)))
                         Itrace = Itrace*expofunc[0] + blackbody[0]*(1-expofunc[0])
@@ -498,7 +500,7 @@ class VTCP:
         
         for t in range(np.shape(self.I)[0]):
             saveing=t+ind*intlen+int(startind)
-
+            self.savecsv(self.I[t,:,:,0],OutputDirectory / f'Intensity_total_{self.orientation}_{saveing}.csv')
             self.savecsv(self.I[t,:,:,1],OutputDirectory / f'Intensity_red_{self.orientation}_{saveing}.csv')
             self.savecsv(self.I[t,:,:,2],OutputDirectory / f'Intensity_green_{self.orientation}_{saveing}.csv')
             self.savecsv(self.I[t,:,:,3],OutputDirectory / f'Intensity_blue_{self.orientation}_{saveing}.csv')    
@@ -597,7 +599,10 @@ if __name__ == "__main__":
     parser.add_argument('--delta', dest='delta', type=float,
                         help='Optional grid spacing for chrest data. Default is [0.00025, 0.00025, 0.00025]',
                         nargs='+', default=[0.00025, 0.00025, 0.00025])
-   
+    
+    parser.add_argument('--orientation', dest='orientation', type=str,
+                        help="Either top or side")    
+
 
     args = parser.parse_args()
 
