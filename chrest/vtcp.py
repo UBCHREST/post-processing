@@ -37,7 +37,8 @@ class VTCP:
     Creates a new class from hdf5 chrest formatted file(s).
     """
 
-    def __init__(self, files=None):
+    def __init__(self, files=None,isCHREST=False):
+        # if ischrest
         if files is None:
             self.files = []
         elif isinstance(files, str):
@@ -92,51 +93,54 @@ class VTCP:
         self.metadata = dict()
         
         # if interpolate:
-                
-        # Open each file to get the time and check the available fields
-        for file in self.files:
-            # Load in the hdf5 file
-            hdf5 = h5py.File(file, 'r')
-
-            # If not set, copy over the cells and vertices
-            if self.cells is None:
-                self.cells = hdf5["viz"]["topology"]["cells"]
-                self.vertices = hdf5["geometry"]["vertices"][:]
-                self.geometry_file = file
-
-            # extract the time
-            timeInFile = hdf5['time'][:, 0]
-            for idx, time in enumerate(timeInFile):
-                self.times.append(time)
-                self.files_per_time[time] = file
-                self.index_per_time[time] = idx
-
-        # Store the list of times
-        self.times = list(self.files_per_time.keys())
-        self.times.sort()
-        self.timeitervals.append(self.times.copy())
+        chrestdata = ChrestData(files)    
         
-        self.interpolate=False
-        self.gradients=[]
-        # Load in any available metadata based upon the file structure
-        self.metadata['path'] = str(self.files[0])
-
-        # load in the restart file
-        try:
-            restart_file = self.files[0].parent.parent / "restart.rst"
-            if restart_file.is_file():
-                self.metadata['restart.rst'] = restart_file.read_text()
-        except (Exception,):
-            print("Could not locate restart.rst for metadata")
+        if not isCHREST:
+        
+            # Open each file to get the time and check the available fields
+            for file in self.files:
+                # Load in the hdf5 file
+                hdf5 = h5py.File(file, 'r')
+    
+                # If not set, copy over the cells and vertices
+                if self.cells is None:
+                    self.cells = hdf5["viz"]["topology"]["cells"]
+                    self.vertices = hdf5["geometry"]["vertices"][:]
+                    self.geometry_file = file
+    
+                # extract the time
+                timeInFile = hdf5['time'][:, 0]
+                for idx, time in enumerate(timeInFile):
+                    self.times.append(time)
+                    self.files_per_time[time] = file
+                    self.index_per_time[time] = idx
+    
+            # Store the list of times
+            self.times = list(self.files_per_time.keys())
+            self.times.sort()
+            self.timeitervals.append(self.times.copy())
             
-        # load in the restart file
-        try:
-            simulation_directory = self.files[0].parent.parent
-            yaml_files = list(simulation_directory.glob("*.yaml"))
-            for yaml_file in yaml_files:
-                self.metadata[yaml_file.name] = yaml_file.read_text()
-        except (Exception,):
-            print("Could not locate yaml files for metadata")
+            self.interpolate=False
+            self.gradients=[]
+            # Load in any available metadata based upon the file structure
+            self.metadata['path'] = str(self.files[0])
+    
+            # load in the restart file
+            try:
+                restart_file = self.files[0].parent.parent / "restart.rst"
+                if restart_file.is_file():
+                    self.metadata['restart.rst'] = restart_file.read_text()
+            except (Exception,):
+                print("Could not locate restart.rst for metadata")
+                
+            # load in the restart file
+            try:
+                simulation_directory = self.files[0].parent.parent
+                yaml_files = list(simulation_directory.glob("*.yaml"))
+                for yaml_file in yaml_files:
+                    self.metadata[yaml_file.name] = yaml_file.read_text()
+            except (Exception,):
+                print("Could not locate yaml files for metadata")
 
     """
     Reports the fields from each the file
@@ -413,10 +417,13 @@ class VTCP:
         chrest_data.metadata = self.metadata
         self.raw_data=chrest_data
     
-    def trace_rays(self,chrest_data):
-        
-        Temp=np.copy(chrest_data.new_data['temperature'])
-        rhoYc=np.copy(chrest_data.new_data['densityYi'])
+    def trace_rays(self,chrest_data,isCHREST):
+        if isCHREST:
+            Temp=chrest_data.get_field('temperature')[0]
+            rhoYc=chrest_data.get_field('Yi')[0]
+        else:
+            Temp=np.copy(chrest_data.new_data['temperature'])
+            rhoYc=np.copy(chrest_data.new_data['densityYi'])
         fv=rhoYc/2000
         indx=3
         indy=2
@@ -600,14 +607,15 @@ if __name__ == "__main__":
                         help='Optional grid spacing for chrest data. Default is [0.00025, 0.00025, 0.00025]',
                         nargs='+', default=[0.00025, 0.00025, 0.00025])
     
-    parser.add_argument('--orientation', dest='orientation', type=str,
-                        help="Either top or side")    
+    parser.add_argument('--CHREST', dest='isCHREST', action='store_true',
+                        help="Whether you are trying to access files from the surface monitor.",
+                        ) 
 
 
     args = parser.parse_args()
 
     # this is some example code for chest file post-processing
-    vtcp_data = VTCP(args.file)
+    vtcp_data = VTCP(args.file,args.isCHREST)
     print('Starting virtual tcp.')
     
 
@@ -623,29 +631,28 @@ if __name__ == "__main__":
         if len(field_mapping_list) > 2:
             component_select_names[field_mapping_list[0]] = field_mapping_list[2].split(',') 
         
-    # create a chrest data
-    delta=args.delta
-    end=[0.1, 0.0256, 0.0128]
-    start=[0., 0.0, -0.0128]
-    chrest_data = ChrestData()
-    chrest_data.setup_new_grid(start, end, delta)
+    # # create a chrest data
+    # delta=args.delta
+    # end=[0.1, 0.0256, 0.0128]
+    # start=[0., 0.0, -0.0128]
+
     
-    if args.filerange is None:
-        filerange=[0,len(vtcp_data.times)]
-        startind=0
-    else:
-        filerange=args.filerange
-        startind=filerange[0]
+    # if args.filerange is None:
+    #     filerange=[0,len(vtcp_data.times)]
+    #     startind=0
+    # else:
+    #     filerange=args.filerange
+    #     startind=filerange[0]
         
-    if args.batchsize is not None:
-        if len(vtcp_data.times) > args.batchsize:
-            vtcp_data.sort_time(args.batchsize,filerange)
-            print("The code processes " + str(args.batchsize) + " files at a time.")
-        else:
-            vtcp_data.sort_time(len(vtcp_data.times),filerange)
-            print("The code processes " + str(len(vtcp_data.times)) + " files at a time.")
-    else:
-        vtcp_data.sort_time(len(vtcp_data.times),filerange)
+    # if args.batchsize is not None:
+    #     if len(vtcp_data.times) > args.batchsize:
+    #         vtcp_data.sort_time(args.batchsize,filerange)
+    #         print("The code processes " + str(args.batchsize) + " files at a time.")
+    #     else:
+    #         vtcp_data.sort_time(len(vtcp_data.times),filerange)
+    #         print("The code processes " + str(len(vtcp_data.times)) + " files at a time.")
+    # else:
+    #     vtcp_data.sort_time(len(vtcp_data.times),filerange)
     
     vtcp_data.orientation='side'
     if args.orientation is not None:
@@ -665,17 +672,56 @@ if __name__ == "__main__":
     PRFMatrix = genfromtxt(PRFLocation,delimiter=',')
 
     vtcp_data.dt=args.dt
-
-    for i in range(0,vtcp_data.numintervals):
-        # map the ablate data to chrest
+    
+    if args.isCHREST:
+        chrest_data = ChrestData(args.file)
         
-        start_time = time.time()
-        vtcp_data.convertfield(chrest_data, field_mappings,i, component_select_names, args.max_distance)
-        vtcp_data.trace_rays(chrest_data)
-        vtcp_data.get_temperature(newdir,i, len(vtcp_data.timeitervals[0]),startind,args.dt,PRFMatrix=PRFMatrix)
-        vtcp_data.saveintensities(newdir_int,i, len(vtcp_data.timeitervals[0]),startind)
-        # vtcp_data.get_image()
-        print("--- %s seconds ---" % (time.time() - start_time))
+        for i in range(0,vtcp_data.numintervals):
+            # map the ablate data to chrest
+            
+            start_time = time.time()
+            vtcp_data.trace_rays(chrest_data,args.isCHREST)
+            vtcp_data.get_temperature(newdir,i, 0,0,args.dt,PRFMatrix=PRFMatrix)
+            vtcp_data.saveintensities(newdir_int,i, 0,0)
+            # vtcp_data.get_image()
+            print("--- %s seconds ---" % (time.time() - start_time))
+        
+    else:
+        delta=args.delta
+        end=[0.1, 0.0256, 0.0128]
+        start=[0., 0.0, -0.0128]
+
+        
+        if args.filerange is None:
+            filerange=[0,len(vtcp_data.times)]
+            startind=0
+        else:
+            filerange=args.filerange
+            startind=filerange[0]
+            
+        if args.batchsize is not None:
+            if len(vtcp_data.times) > args.batchsize:
+                vtcp_data.sort_time(args.batchsize,filerange)
+                print("The code processes " + str(args.batchsize) + " files at a time.")
+            else:
+                vtcp_data.sort_time(len(vtcp_data.times),filerange)
+                print("The code processes " + str(len(vtcp_data.times)) + " files at a time.")
+        else:
+            vtcp_data.sort_time(len(vtcp_data.times),filerange)
+            
+        chrest_data = ChrestData()
+        chrest_data.setup_new_grid(start, end, delta)
+        
+        for i in range(0,vtcp_data.numintervals):
+            # map the ablate data to chrest
+            
+            start_time = time.time()
+            vtcp_data.convertfield(chrest_data, field_mappings,i, component_select_names, args.max_distance)
+            vtcp_data.trace_rays(chrest_data)
+            vtcp_data.get_temperature(newdir,i, len(vtcp_data.timeitervals[0]),startind,args.dt,PRFMatrix=PRFMatrix)
+            vtcp_data.saveintensities(newdir_int,i, len(vtcp_data.timeitervals[0]),startind)
+            # vtcp_data.get_image()
+            print("--- %s seconds ---" % (time.time() - start_time))
         
 
     
