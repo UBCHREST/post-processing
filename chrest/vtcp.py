@@ -91,10 +91,7 @@ class VTCP:
         
         # load the metadata from the first file
         self.metadata = dict()
-        
-        # if interpolate:
-        chrestdata = ChrestData(files)    
-        
+
         if not isCHREST:
         
             # Open each file to get the time and check the available fields
