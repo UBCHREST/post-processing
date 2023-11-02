@@ -714,7 +714,7 @@ if __name__ == "__main__":
             
             start_time = time.time()
             vtcp_data.convertfield(chrest_data, field_mappings,i, component_select_names, args.max_distance)
-            vtcp_data.trace_rays(chrest_data)
+            vtcp_data.trace_rays(chrest_data,args.isCHREST)
             vtcp_data.get_temperature(newdir,i, len(vtcp_data.timeitervals[0]),startind,args.dt,PRFMatrix=PRFMatrix)
             vtcp_data.saveintensities(newdir_int,i, len(vtcp_data.timeitervals[0]),startind)
             # vtcp_data.get_image()
