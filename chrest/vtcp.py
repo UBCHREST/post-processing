@@ -91,7 +91,7 @@ class VTCP:
         
         # load the metadata from the first file
         self.metadata = dict()
-
+        
         if not isCHREST:
         
             # Open each file to get the time and check the available fields
@@ -417,7 +417,7 @@ class VTCP:
     def trace_rays(self,chrest_data,isCHREST):
         if isCHREST:
             Temp=chrest_data.get_field('temperature')[0]
-            rhoYc=chrest_data.get_field('Yi')[0]
+            rhoYc=chrest_data.get_field('densityYi')[0]
         else:
             Temp=np.copy(chrest_data.new_data['temperature'])
             rhoYc=np.copy(chrest_data.new_data['densityYi'])
@@ -435,25 +435,30 @@ class VTCP:
         #this code assumes everything is in chrest fromat thus dx=0.25mm
         dx=chrest_data.delta[0]
         self.dx=dx
+        import time 
+        Kappa=[0,0,0,0]
+        blackbody=[0,0,0,0]
+        expofunc=[0,0,0,0]
         # if self.orientation=='side':
         for t in range(np.shape(Temp)[0]):
+            start_time=time.time()
             for i in range(np.shape(Temp)[indx]):
+                # start_time=time.time()
+                
                 for j in range(np.shape(Temp)[indy]):
                     Itrace=0
                     Itrace_red=0
                     Itrace_green=0
                     Itrace_blue=0
-                    Kappa=[0,0,0,0]
-                    blackbody=[0,0,0,0]
-                    expofunc=[0,0,0,0]
+
                     for k in range(np.shape(Temp)[indz]):
-                        
-                        if self.orientation=='top':
-                            intIdx = (j,k)
-                        elif self.orientation=='side':
-                            intIdx = (k,j)
-                        else:
-                            print("the orientation is not supported...")
+                        intIdx = (j,k)
+                        # if self.orientation=='top':
+                        #     intIdx = (j,k)
+                        # elif self.orientation=='side':
+                        #     intIdx = (k,j)
+                        # else:
+                        #     print("the orientation is not supported...")
                         
                         
                         Kappa[0]=3.72*fv[t][intIdx][i]*self.C0*Temp[t][intIdx][i]/self.C2
@@ -478,7 +483,9 @@ class VTCP:
                         Itrace_blue = Itrace_blue*expofunc[3] + blackbody[3]*(1-expofunc[3])
                         
                     I[t,i,j,:]=[Itrace,Itrace_red,Itrace_green,Itrace_blue]
-        
+                print(i)        
+            print("--- %s seconds ---" % (time.time() - start_time))
+            
         self.I=I
 
         
@@ -530,6 +537,7 @@ class VTCP:
                     RGBVals[Intshape[1]-j-1,i,RGB] = Closestidx
         #plt show
         fig,ax = plt.subplots(figsize =(7,3))
+        ax.axis('off')
         ax.imshow(RGBVals)
         if(ShowPlot):
             fig.show()
