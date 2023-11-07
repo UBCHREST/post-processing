@@ -441,7 +441,7 @@ class VTCP:
         expofunc=[0,0,0,0]
         # if self.orientation=='side':
         for t in range(np.shape(Temp)[0]):
-            start_time=time.time()
+            #start_time=time.time()
             for i in range(np.shape(Temp)[indx]):
                 # start_time=time.time()
                 
@@ -483,8 +483,8 @@ class VTCP:
                         Itrace_blue = Itrace_blue*expofunc[3] + blackbody[3]*(1-expofunc[3])
                         
                     I[t,i,j,:]=[Itrace,Itrace_red,Itrace_green,Itrace_blue]
-                print(i)        
-            print("--- %s seconds ---" % (time.time() - start_time))
+             #   print(i)        
+            #print("--- %s seconds ---" % (time.time() - start_time))
             
         self.I=I
 
