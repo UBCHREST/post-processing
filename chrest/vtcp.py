@@ -452,13 +452,13 @@ class VTCP:
                     Itrace_blue=0
 
                     for k in range(np.shape(Temp)[indz]):
-                        intIdx = (j,k)
-                        # if self.orientation=='top':
-                        #     intIdx = (j,k)
-                        # elif self.orientation=='side':
-                        #     intIdx = (k,j)
-                        # else:
-                        #     print("the orientation is not supported...")
+                        # intIdx = (j,k)
+                        if self.orientation=='top':
+                            intIdx = (j,k)
+                        elif self.orientation=='side':
+                            intIdx = (k,j)
+                        else:
+                            print("the orientation is not supported...")
                         
                         
                         Kappa[0]=3.72*fv[t][intIdx][i]*self.C0*Temp[t][intIdx][i]/self.C2
@@ -483,7 +483,7 @@ class VTCP:
                         Itrace_blue = Itrace_blue*expofunc[3] + blackbody[3]*(1-expofunc[3])
                         
                     I[t,i,j,:]=[Itrace,Itrace_red,Itrace_green,Itrace_blue]
-             #   print(i)        
+                # print(i)        
             print("--- %s seconds ---" % (time.time() - start_time))
             
         self.I=I
