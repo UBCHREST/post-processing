@@ -421,11 +421,13 @@ class VTCP:
         else:
             Temp=np.copy(chrest_data.new_data['temperature'])
             rhoYc=np.copy(chrest_data.new_data['densityYi'])
-        fv=rhoYc/2000
+        fv_old=rhoYc/2000
         indx=3
         indy=2
         indz=1
         
+        mask=np.greater(fv_old[:],np.max(fv_old[:])*0.01)
+        fv=np.where(mask, fv_old[:], 0)
         # for debug purposes
         # Temp[:]= 2232
         # fv[:] = 9.06e-12
