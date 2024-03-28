@@ -73,55 +73,93 @@ class Fieldconvert:
         return 0
         
     def findverticies(self):
-
-        start_time = time.time()
-        from multiprocessing import cpu_count
-        n_cores = cpu_count()
         
-        pieces = np.array_split(self.vertnew, n_cores-1)
-        # for piece in pieces:
-        #     a=self.findindvertsection(piece)
-        # Create a pool of workers
-        with Pool(processes=n_cores-1) as pool:
-            results = pool.map(self.findindvertsection, [(piece) for piece in pieces])
-        self.vertindSS = np.concatenate(results)  
-        print("--- %s seconds for finding the verticies ---" % (time.time() - start_time))
+        if self.dimension==2:
+            start_time = time.time()
+            from multiprocessing import cpu_count
+            n_cores = cpu_count()
             
-            
-            # start_time = time.time()
-            # for i in range(len(self.vertSS)):
-            #     # self.vertindSS[i]=np.where((self.vertSS == self.vertnew[i,:]).all(axis=1))[0]
-            #     self.vertindSS[i]=np.where((self.vertSS[:,0] == self.vertnew[i,0]) & (self.vertSS[:,1]==self.vertnew[i,1]))[0][0]
-            # print("--- %s seconds for finding the verticies ---" % (time.time() - start_time))
-            
-        #     return 0
+            pieces = np.array_split(self.vertnew, n_cores-1)
+            # for piece in pieces:
+            #     a=self.findindvertsection(piece)
+            # Create a pool of workers
+            with Pool(processes=n_cores-1) as pool:
+                results = pool.map(self.find2Dindvertsection, [(piece) for piece in pieces])
+            self.vertindSS = np.concatenate(results)  
+            print("--- %s seconds for finding the verticies ---" % (time.time() - start_time))
         
-        # elif self.dimension==3:
-        #     start_time = time.time()
-        #     for i in range(len(self.vertSS)):
-        #         # self.vertindSS[i]=np.where((self.vertSS == self.vertnew[i,:]).all(axis=1))[0]
-        #         self.vertindSS[i]=np.where((self.vertSS[:,0] == self.vertnew[i,0]) 
-        #                                    & (self.vertSS[:,1]==self.vertnew[i,1])
-        #                                    & (self.vertSS[:,2]==self.vertnew[i,2]))[0][0]
-        #     print("--- %s seconds for finding the verticies ---" % (time.time() - start_time))
+        
+        
+        elif self.dimension==3:
+            start_time = time.time()
+            from multiprocessing import cpu_count
+            n_cores = cpu_count()
             
-        # else:
-        #     print("Unkonwon data dimension. Only 2D and 3D meshes are supported")        
+            pieces = np.array_split(self.vertnew, n_cores-1)
+            # for piece in pieces:
+            #     a=self.findindvertsection(piece)
+            # Create a pool of workers
+            with Pool(processes=n_cores-1) as pool:
+                results = pool.map(self.find3Dindvertsection, [(piece) for piece in pieces])
+            self.vertindSS = np.concatenate(results)  
+            print("--- %s seconds for finding the verticies ---" % (time.time() - start_time)) 
+            
         return 0     
     
     def findcells(self):
+        from multiprocessing import cpu_count
+        n_cores = cpu_count()
         if self.dimension==2:
+            
+            #option 1 old way
             start_time = time.time()
-
             for i in range(len(self.cellSS)):
                 self.cellindSS[i]=np.where((self.cellSS[:,0] == self.vertindSS[self.cellnew[i,0]][0]) 
                                            & (self.cellSS[:,1] == self.vertindSS[self.cellnew[i,1]][0]) 
                                            & (self.cellSS[:,2] == self.vertindSS[self.cellnew[i,2]][0]) 
                                            & (self.cellSS[:,3] == self.vertindSS[self.cellnew[i,3]][0]))[0][0]
             print("--- %s seconds for finding the cells ---" % (time.time() - start_time))
+            
+            
+            # start_time = time.time()
+            # for i in range(len(self.cellSS)):
+            #     self.cellindSS[i]=self.find2Dcellsection([self.vertindSS[self.cellnew[i,0]],self.vertindSS[self.cellnew[i,1]],self.vertindSS[self.cellnew[i,2]],self.vertindSS[self.cellnew[i,3]]])
+                
+            # print("--- %s seconds for finding the cells ---" % (time.time() - start_time))
+            
+            
+            #option 3 slit it up 
+            start_time = time.time()
+            pieces = np.array_split(self.cellnew, n_cores-1)
+            # Create a pool of workers
+            # for row in self.cellnew:
+            #     a=self.find2Dcellsectionnew(row)
+            with Pool(processes=n_cores-1) as pool:
+                results = pool.map(self.find2Dcellsection, [piece for piece in pieces])
+                # results = pool.map(self.find2Dcellsectionnew, [row for row in self.cellnew])
+            self.cellindSS = np.concatenate(results) 
+            # self.cellindSS = results
+            print("--- %s seconds for finding the cells ---" % (time.time() - start_time))
+
+
+            #option 4 give the entire array to map
+            start_time = time.time()
+            pieces = np.array_split(self.cellnew, n_cores-1)
+            # Create a pool of workers
+            # for row in self.cellnew:
+            #     a=self.find2Dcellsectionnew(row)
+            with Pool(processes=n_cores-1) as pool:
+                # results = pool.map(self.find2Dcellsection, [piece for piece in pieces])
+                results = pool.map(self.find2Dcellsectionnew, [row for row in self.cellnew])
+            # self.cellindSS = np.concatenate(results) 
+            self.cellindSS = results
+            print("--- %s seconds for finding the cells ---" % (time.time() - start_time))
+
+
         elif self.dimension==3:
             start_time = time.time()
-            for i in range(len(self.cellSS)):
+            # for i in range(len(self.cellSS)):
+            for i in range(10000):
                 self.cellindSS[i]=np.where((self.cellSS[:,0] == self.vertindSS[self.cellnew[i,0]][0]) 
                                            & (self.cellSS[:,1] == self.vertindSS[self.cellnew[i,1]][0]) 
                                            & (self.cellSS[:,2] == self.vertindSS[self.cellnew[i,2]][0]) 
@@ -166,32 +204,47 @@ class Fieldconvert:
         
         return 0
     
-    def findindvertsection(self,section):
-        indexvect=np.zeros(section.shape)
+    def find2Dindvertsection(self,section):
+        indexvect=np.zeros([section.shape[0],1])
         for i in range(len(indexvect)):
             indexvect[i] = np.where((self.vertSS[:,0] == section[i,0]) & (self.vertSS[:,1]==section[i,1]))[0][0]
+        return indexvect  
+    
+    def find3Dindvertsection(self,section):
+        indexvect=np.zeros([section.shape[0],1])
+        for i in range(len(indexvect)):
+            indexvect[i] = np.where((self.vertSS[:,0] == section[i,0]) & (self.vertSS[:,1]==section[i,1])& (self.vertSS[:,2]==section[i,2]))[0][0]
         return indexvect        
+
+    def find2Dcellsectionnew(self,section):
+        # indexvect=np.zeros([section.shape[0],1])
+        # for i in range(len(indexvect)):
+        indexvect=np.where((self.cellSS[:,0] == self.vertindSS[section[0]][0]) 
+                                       & (self.cellSS[:,1] == self.vertindSS[section[1]][0]) 
+                                       & (self.cellSS[:,2] == self.vertindSS[section[2]][0]) 
+                                       & (self.cellSS[:,3] == self.vertindSS[section[3]][0]))[0][0]
+        return indexvect
     
     def find2Dcellsection(self,section):
-        indexvect=np.zeros(section.shape)
+        indexvect=np.zeros([section.shape[0],1])
         for i in range(len(indexvect)):
-            self.cellindSS[i]=np.where((self.cellSS[:,0] == self.vertindSS[section[i,0]][0]) 
+            indexvect[i]=np.where((self.cellSS[:,0] == self.vertindSS[section[i,0]][0]) 
                                        & (self.cellSS[:,1] == self.vertindSS[section[i,1]][0]) 
                                        & (self.cellSS[:,2] == self.vertindSS[section[i,2]][0]) 
-                                       & (self.cellSS[:,3] == self.vertindSS[section[i,3]][0]))
+                                       & (self.cellSS[:,3] == self.vertindSS[section[i,3]][0]))[0][0]
         return indexvect
     
     def find3Dcellsection(self,section):
         indexvect=np.zeros(section.shape)
         for i in range(len(indexvect)):
-            self.cellindSS[i]=np.where((self.cellSS[:,0] == self.vertindSS[section[i,0]][0]) 
+            indexvect[i]=np.where((self.cellSS[:,0] == self.vertindSS[section[i,0]][0]) 
                                        & (self.cellSS[:,1] == self.vertindSS[section[i,1]][0]) 
                                        & (self.cellSS[:,2] == self.vertindSS[section[i,2]][0]) 
                                        & (self.cellSS[:,3] == self.vertindSS[section[i,3]][0])
                                        & (self.cellSS[:,4] == self.vertindSS[section[i,4]][0])
                                        & (self.cellSS[:,5] == self.vertindSS[section[i,5]][0])
                                        & (self.cellSS[:,6] == self.vertindSS[section[i,6]][0])
-                                       & (self.cellSS[:,7] == self.vertindSS[section[i,7]][0]))
+                                       & (self.cellSS[:,7] == self.vertindSS[section[i,7]][0]))[0][0]
         return indexvect
         
 
