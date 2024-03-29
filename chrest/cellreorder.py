@@ -85,7 +85,7 @@ class Fieldconvert:
         self.vertindSS=[]
         self.cellindSS=[]
 
-        self.savedata=True
+        self.savedata=False
         
     def parsedata(self):
         
@@ -185,9 +185,9 @@ class Fieldconvert:
                     # results = pool.map(self.find2Dcellsectionnew, [row for row in self.cellnew])
                 self.cellindSS = np.concatenate(results) 
                 # self.cellindSS = results
-                print("--- %s seconds for finding the cells class pieces ---" % (time.time() - start_time))
-
-
+                print("--- %s seconds for finding the cells class pieces ---" % (time.time() - start_time))            
+            
+            
             # #option 3 give the entire array to map
             # start_time = time.time()
             # pieces = np.array_split(self.cellnew, n_cores-1)
@@ -351,12 +351,18 @@ if __name__ == "__main__":
     parser.add_argument('--filenew', dest='filenew', type=pathlib.Path, required=True,
                             help='The steady state file path'
                                  'to supply more than one file.')
-
+    
+    parser.add_argument('--parallel', dest='parallel', action='store_true',
+                        help="running it in parallel",
+                        )
 
     print("Start reordering the fields")
     args = parser.parse_args()
     
     convert=Fieldconvert()
+    
+    if args.parallel:
+        convert.serial=False
     
     convert.SSfilePath=args.fileSS
     convert.newfilePath=args.filenew
