@@ -11,15 +11,9 @@ Created on Tue Oct 29 11:23:33 2024
 
 import argparse
 import pathlib
-import sys, os
-import pandas
-
+from sys import exit
 import numpy as np
 import h5py
-import time
-
-from chrestData import ChrestData
-from supportPaths import expand_path
 from scipy.spatial import KDTree
 
 
@@ -55,6 +49,17 @@ class Fieldconvert:
         self.cellSS=hdf5SS['/viz/topology/cells'][()]
         self.vertSS=hdf5SS['/geometry/vertices'][()]
         self.solSS=hdf5SS['/fields/solution'][()]
+        self.speciesSS = [None] * hdf5SS['/cell_fields/solution_densityYi'].shape[2]
+        # Determine the species
+        for k in hdf5SS['/cell_fields/solution_densityYi'].attrs.keys():
+            print(f"{k} => {hdf5SS['/cell_fields/solution_densityYi'].attrs[k]}")
+            if isinstance(hdf5SS['/cell_fields/solution_densityYi'].attrs[k],np.bytes_):
+                #get the order right...
+                if k[0:13]=='componentName':
+                    idx=''.join(filter(lambda i: i.isdigit(), k))
+                    self.speciesSS[int(idx)]=hdf5SS['/cell_fields/solution_densityYi'].attrs[k].decode('UTF-8')
+        
+        
         self.dimensionSS=self.vertSS.shape[1]
         hdf5SS.close()
         
@@ -62,16 +67,48 @@ class Fieldconvert:
         self.cellnew=hdf5new['/viz/topology/cells'][()]
         self.vertnew=hdf5new['/geometry/vertices'][()]
         self.solnew=hdf5new['/fields/solution'][()]
+        self.speciesnew = [None] * hdf5new['/cell_fields/solution_densityYi'].shape[2]
+        # Determine the species
+        for k in hdf5new['/cell_fields/solution_densityYi'].attrs.keys():
+            print(f"{k} => {hdf5new['/cell_fields/solution_densityYi'].attrs[k]}")
+            if isinstance(hdf5new['/cell_fields/solution_densityYi'].attrs[k],np.bytes_):
+                #get the order right...
+                if k[0:13]=='componentName':
+                    idx=''.join(filter(lambda i: i.isdigit(), k))
+                    self.speciesnew[int(idx)]=hdf5new['/cell_fields/solution_densityYi'].attrs[k].decode('UTF-8')
         self.dimensionnew=self.vertnew.shape[1]
         hdf5new.close()
         
-        
-        self.vertindSS=np.zeros([len(self.vertSS),1])
-        self.cellindSS=np.zeros([len(self.cellSS),1])
         self.newmat=[]
         
-        self.serial=True
-        
+        #checking if the mechanisms are the same
+        self.samemech=True
+        for i,x in enumerate(self.speciesSS):
+            self.samemech=x==self.speciesnew[i]
+            
+            
+        #TODO change this in the future at some point...
+        if not self.samemech:
+            raise Exception("I can only do the same mechnisms for now...")
+            exit()
+            
+        if self.dimensionSS != self.dimensionnew:
+            print('The dimensions of the two files dont match. The only thing currently supported is a 3D->3D and 2D->3D 2D->2D')
+            
+            if self.dimensionSS ==3:
+                raise Exception('The steady state file has 3 dimensions')
+                exit()
+            else:
+                self.addzmom=True
+            
+        if (self.dimensionSS+2+len(self.speciesSS)!=self.solSS.shape[2]):
+            raise Exception('You got extra variables in the SS files bubba...')
+            exit()
+
+        if (self.dimensionnew+2+len(self.speciesnew)!=self.solnew.shape[2]):
+            raise Exception('You got extra variables in the new files bubba...')
+            exit()
+
         return 0
     
     def compute_cell_centers(self,cells,vertices, dimensions=-1):
@@ -102,22 +139,18 @@ class Fieldconvert:
             coords = coords[:, 0]
 
         return coords
-    
         
- 
     def findcells(self):
 
         cell_centersSS = self.compute_cell_centers(self.cellSS,self.vertSS[:],self.dimensionSS)
         cell_centersnew = self.compute_cell_centers(self.cellnew,self.vertnew[:],self.dimensionnew)
         
         if cell_centersSS.shape[1] != cell_centersnew.shape[1]:
-            print('The dimensions of the two files dont match. The only thing currently supported is a 3D->3D and 2D->3D 2D->2D')
         
             if cell_centersSS.shape[1] == 2 and cell_centersnew.shape[1] == 3:
                 print('SS shape is 2D and new shape is 3D. The code is assuming the 2D mesh is on the xy-plane')
                 b=np.zeros(cell_centersSS.shape[0])
-                cell_centersSS=np.append(cell_centersSS,b.reshape(b.shape[0],1),1)
-                
+                cell_centersSS=np.append(cell_centersSS,b.reshape(b.shape[0],1),1)           
         
         tree = KDTree(cell_centersSS)
         dist, self.points = tree.query(cell_centersnew, workers=-1)
@@ -127,10 +160,20 @@ class Fieldconvert:
         
     def reorder(self):
         self.newmat=np.zeros_like(self.solnew)
-        for i in range(len(self.cellnew)):
-            print(self.points[i])
-            self.newmat[0,i,:]=self.solSS[0,self.points[i],:]
-        return 0
+        
+        if self.addzmom:
+            for i in range(len(self.cellnew)):
+                # print(self.points[i])
+                #assume z momentum is 0
+                self.newmat[0,i,:]=np.insert(self.solSS[0,self.points[i],:],4,0)
+            return 0
+        else:
+            #for simple 3D->3D same mechanism
+            for i in range(len(self.cellnew)):
+                # print(self.points[i])
+                self.newmat[0,i,:]=self.solSS[0,self.points[i],:]
+            return 0
+
     
     def writedata(self):
         
@@ -142,17 +185,9 @@ class Fieldconvert:
         hdf5new['/fields/solution'][()]=self.newmat
         
         hdf5new.close()
-
-        
-        hdf5new = h5py.File(self.newfilePath, 'r+')
-        b=hdf5new['/fields/solution'][()]
-        # solnew[...] = self.newmat
-        hdf5new.close()
-        
+      
         return 0
     
-
-        
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate a chrest data file from an ablate file')
@@ -185,14 +220,11 @@ if __name__ == "__main__":
     
     #Step 2 Calculate the cell centers, make tree, find closest
     convert.findcells()
-    
-    #Step 3 Check all fields 
-    
-    #Step 4 Reorder the data
+        
+    #Step 3 Reorder the data
     convert.reorder()
     
-    #Step 5 Write out files
+    #Step 4 Write out files
     convert.writedata()
-    
     
     print("Finished reordering the fields")
