@@ -39,7 +39,8 @@ class Fieldconvert:
         
         self.vertindSS=[]
         self.cellindSS=[]
-
+        
+        self.addzmom=False
         self.savedata=False
         
     def parsedata(self):
@@ -100,12 +101,11 @@ class Fieldconvert:
                 exit()
             else:
                 self.addzmom=True
-            
-        if (self.dimensionnew+2+len(self.speciesnew)!=self.solnew.shape[2]) == (self.dimensionnew+2+len(self.speciesnew)!=self.solnew.shape[2]) :
+
+        if (self.dimensionnew+2+len(self.speciesnew)!=self.solnew.shape[2]) != (self.dimensionSS+2+len(self.speciesSS)!=self.solSS.shape[2]) :
             raise Exception('Only one of the files has extra variables bubba...')
             exit()
             
-
         return 0
     
     def compute_cell_centers(self,cells,vertices, dimensions=-1):
