@@ -105,9 +105,10 @@ class Fieldconvert:
             raise Exception('You got extra variables in the SS files bubba...')
             exit()
 
-        if (self.dimensionnew+2+len(self.speciesnew)!=self.solnew.shape[2]):
-            raise Exception('You got extra variables in the new files bubba...')
+        if (self.dimensionnew+2+len(self.speciesnew)!=self.solnew.shape[2]) == (self.dimensionnew+2+len(self.speciesnew)!=self.solnew.shape[2]) :
+            raise Exception('Only one file has extra variables bubba...')
             exit()
+            
 
         return 0
     
