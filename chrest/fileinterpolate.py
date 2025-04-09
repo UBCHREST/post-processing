@@ -36,6 +36,7 @@ class Fieldconvert:
         self.vertnew=[]
         self.solnew=[]
         self.points=[]
+        self.angles=[]
         
         self.vertindSS=[]
         self.cellindSS=[]
@@ -154,6 +155,43 @@ class Fieldconvert:
             
         return 0
 
+    def findcells_axis(self):
+
+        cell_centersSS = self.compute_cell_centers(self.cellSS,self.vertSS[:],self.dimensionSS)
+        cell_centersnew = self.compute_cell_centers(self.cellnew,self.vertnew[:],self.dimensionnew)
+        
+        if cell_centersSS.shape[1] == cell_centersnew.shape[1]:
+        
+            print("For axisymmetric interpolation, data must be 2D revolving to 3D")
+
+        # For axisymmetric, axis needs to be defined as a y-level in the 2D and a (y,z) coordinate for the 3D 
+        SS_axis = 0.0254
+        new_axis = [0.0254,0]
+        
+        
+        print(f'SS shape is 2D and new shape is 3D. The code is revolving the 2D points below y = {SS_axis} about (y,z) = ({new_axis[0]},{new_axis[1]}) in the new shape')
+        b=np.zeros(cell_centersSS.shape[0])
+
+        # Repositioning 2D about axis, translating (effectively removing) positive values, taking absolute value to convert to radius
+        cell_centersSS[:,1] -= SS_axis
+        cell_centersSS[ (cell_centersSS[:,1] > 0) ,1] += 1e6
+        cell_centersSS = np.abs(cell_centersSS)
+
+        # Repositioning 3D about axis
+        cell_centersnew[:,[1,2]] -= new_axis
+
+        # Converting the 3D points to x and r to match the 2D's x and y, then saving the angles for later calculations
+        cell_centersnew_radius = np.sqrt( cell_centersnew[:,1]**2 + cell_centersnew[:,2]**2 )
+        cell_centersnew_axis = np.append(cell_centersnew[:,0], cell_centersnew_radius)
+
+        # Because the bottom half of the 2D mesh is used, the zero-angle radial-out direction is -Y, so all angles must be defined as atan2(Z, -Y) for 2D y-momentum to correctly translate into 3D Y and Z components
+        self.angles = np.arctan2( cell_centersnew[:,2] , -cell_centersnew[:,1] )
+        
+        # Finding nearest cells based on x and r
+        tree = KDTree(cell_centersSS)
+        dist, self.points = tree.query(cell_centersnew_axis, workers=-1)
+            
+        return 0
         
     def reorder(self):
         self.newmat=np.zeros_like(self.solnew)
@@ -163,6 +201,7 @@ class Fieldconvert:
                 # print(self.points[i])
                 #assume z momentum is 0
                 self.newmat[0,i,:]=np.insert(self.solSS[0,self.points[i],:],4,0)
+
             return 0
         else:
             #for simple 3D->3D same mechanism
@@ -170,7 +209,21 @@ class Fieldconvert:
                 # print(self.points[i])
                 self.newmat[0,i,:]=self.solSS[0,self.points[i],:]
             return 0
+        
+    def reorder_axis(self):
+        self.newmat=np.zeros_like(self.solnew)
+        
+        for i in range(len(self.cellnew)):
+            
+            # Calculatig new Y and Z momentum based on [indices 3 and 4]
+            sol_rho_v = self.solSS[0,self.points[i],3]*np.sin( self.angles[i] )
+            sol_rho_w = self.solSS[0,self.points[i],3]*np.cos( self.angles[i] )
 
+            self.newmat[0,i,:] = np.insert(self.solSS[0,self.points[i],:] , 4 , sol_rho_w) # inserting z momentum
+            self.newmat[0,i,3] = sol_rho_v # replacing y momentum
+            
+
+            return 0
     
     def writedata(self):
         
@@ -200,6 +253,10 @@ if __name__ == "__main__":
     parser.add_argument('--parallel', dest='parallel', action='store_true',
                         help="running it in parallel",
                         )
+    
+    parser.add_argument('--axis', dest='axis', action='store_true', required=False,
+                        help="flags a 2D input to be revolved into an axisymmetric 3D output",
+                        )
 
     print("Start reordering the fields")
     args = parser.parse_args()
@@ -214,12 +271,12 @@ if __name__ == "__main__":
     
     #Step 1 parse data
     convert.parsedata()
-    
+
     #Step 2 Calculate the cell centers, make tree, find closest
-    convert.findcells()
+    convert.findcells_axis() if args.axis else convert.findcells()
         
     #Step 3 Reorder the data
-    convert.reorder()
+    convert.reorder_axis() if args.axis else convert.reorder_axis()
     
     #Step 4 Write out files
     convert.writedata()
